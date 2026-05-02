@@ -1,0 +1,310 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Light theme palette ─────────────────────────────────────────────────── */
+/* Edit --light-* vars to change the light theme without affecting dark.       */
+:root {
+  --light-surface:  247 247 247;   /* #F7F7F7 — near-white bg      */
+  --light-panel:    255 255 255;   /* #FFFFFF — card / modal bg    */
+  --light-sidebar:  239 239 239;   /* #EFEFEF — sidebar bg         */
+  --light-border:   225 225 225;   /* #E1E1E1 — dividers           */
+  --light-fg:       10  10  10;    /* #0A0A0A — primary text       */
+  --light-fg2:      99  99  99;    /* #636363 — secondary text     */
+  --light-muted:    171 171 171;   /* #ABABAB — placeholder / faint*/
+  --light-accent:   79  70  229;   /* #4F46E5 — indigo             */
+  --light-accent-h: 67  56  202;   /* #4338CA — hover              */
+
+  /* Active semantic tokens (light is default) */
+  --surface:  var(--light-surface);
+  --panel:    var(--light-panel);
+  --sidebar:  var(--light-sidebar);
+  --border:   var(--light-border);
+  --fg:       var(--light-fg);
+  --fg-2:     var(--light-fg2);
+  --muted:    var(--light-muted);
+  --accent:   var(--light-accent);
+  --accent-h: var(--light-accent-h);
+}
+
+/* ─── Stone theme palette (app default) ──────────────────────────────────── */
+/* Edit --stone-* vars to change this theme without affecting others.         */
+/* Darker than light themes, lighter than Obsidian. Gold accent on warm gray. */
+html.dark.stone {
+  --stone-surface:  30  30  30;    /* #1E1E1E — neutral dark gray bg      */
+  --stone-panel:    42  42  42;    /* #2A2A2A — neutral gray cards        */
+  --stone-sidebar:  23  23  23;    /* #171717 — deeper sidebar            */
+  --stone-border:   58  58  58;    /* #3A3A3A — neutral border            */
+  --stone-fg:       240 240 240;   /* #F0F0F0 — near-white text           */
+  --stone-fg2:      155 155 155;   /* #9B9B9B — medium gray secondary     */
+  --stone-muted:    88  88  88;    /* #585858 — muted gray                */
+  --stone-accent:   212 175 55;    /* #D4AF37 — metallic gold             */
+  --stone-accent-h: 186 150 30;    /* #BA961E — gold hover                */
+
+  /* Active semantic tokens */
+  --surface:  var(--stone-surface);
+  --panel:    var(--stone-panel);
+  --sidebar:  var(--stone-sidebar);
+  --border:   var(--stone-border);
+  --fg:       var(--stone-fg);
+  --fg-2:     var(--stone-fg2);
+  --muted:    var(--stone-muted);
+  --accent:   var(--stone-accent);
+  --accent-h: var(--stone-accent-h);
+}
+
+/* ─── Dark theme palette ──────────────────────────────────────────────────── */
+/* Edit --dark-* vars to change the dark theme without affecting light.        */
+html.dark {
+  --dark-surface:  14  14  14;    /* #0E0E0E — true dark bg       */
+  --dark-panel:    23  23  23;    /* #171717 — card / modal bg    */
+  --dark-sidebar:  18  18  18;    /* #121212 — sidebar bg         */
+  --dark-border:   42  42  42;    /* #2A2A2A — dividers           */
+  --dark-fg:       255 255 255;   /* #FFFFFF — primary text       */
+  --dark-fg2:      145 145 145;   /* #919191 — secondary text     */
+  --dark-muted:    86  86  86;    /* #565656 — placeholder / faint*/
+  --dark-accent:   10  191 83;    /* #0ABF53 — neon green         */
+  --dark-accent-h: 0   171 1;     /* #00AB01 — hover              */
+
+  /* Active semantic tokens (dark overrides) */
+  --surface:  var(--dark-surface);
+  --panel:    var(--dark-panel);
+  --sidebar:  var(--dark-sidebar);
+  --border:   var(--dark-border);
+  --fg:       var(--dark-fg);
+  --fg-2:     var(--dark-fg2);
+  --muted:    var(--dark-muted);
+  --accent:   var(--dark-accent);
+  --accent-h: var(--dark-accent-h);
+}
+
+/* ─── Light Pink theme palette ────────────────────────────────────────────── */
+/* Edit --light-pink-* vars to change this theme without affecting others.    */
+html.light-pink {
+  --light-pink-surface:  252 240 244;   /* #FCF0F4 — soft rose bg       */
+  --light-pink-panel:    255 248 251;   /* #FFF8FB — barely-pink white  */
+  --light-pink-sidebar:  249 225 235;   /* #F9E1EB — deeper pink sidebar*/
+  --light-pink-border:   242 198 215;   /* #F2C6D7 — soft rose border   */
+  --light-pink-fg:       45  15  27;    /* #2D0F1B — deep plum text     */
+  --light-pink-fg2:      135 70  95;    /* #87465F — muted plum         */
+  --light-pink-muted:    196 148 168;   /* #C494A8 — faded rose         */
+  --light-pink-accent:   236 72  153;   /* #EC4899 — hot pink           */
+  --light-pink-accent-h: 219 39  119;   /* #DB2777 — hover              */
+
+  /* Active semantic tokens */
+  --surface:  var(--light-pink-surface);
+  --panel:    var(--light-pink-panel);
+  --sidebar:  var(--light-pink-sidebar);
+  --border:   var(--light-pink-border);
+  --fg:       var(--light-pink-fg);
+  --fg-2:     var(--light-pink-fg2);
+  --muted:    var(--light-pink-muted);
+  --accent:   var(--light-pink-accent);
+  --accent-h: var(--light-pink-accent-h);
+}
+
+/* ─── Dark Maroon theme palette ───────────────────────────────────────────── */
+/* Edit --dark-maroon-* vars to change this theme without affecting others.   */
+html.dark.dark-maroon {
+  --dark-maroon-surface:  30  8   14;   /* #1E080E — deep maroon bg     */
+  --dark-maroon-panel:    44  13  22;   /* #2C0D16 — maroon cards       */
+  --dark-maroon-sidebar:  22  6   11;   /* #16060B — deeper sidebar     */
+  --dark-maroon-border:   75  25  40;   /* #4B1928 — maroon border      */
+  --dark-maroon-fg:       255 228 234;  /* #FFE4EA — warm rose white    */
+  --dark-maroon-fg2:      215 150 170;  /* #D796AA — readable muted rose*/
+  --dark-maroon-muted:    155 90  110;  /* #9B5A6E — lighter muted text */
+  --dark-maroon-accent:   220 38  38;   /* #DC2626 — vivid red          */
+  --dark-maroon-accent-h: 185 28  28;   /* #B91C1C — hover              */
+
+  /* Active semantic tokens */
+  --surface:  var(--dark-maroon-surface);
+  --panel:    var(--dark-maroon-panel);
+  --sidebar:  var(--dark-maroon-sidebar);
+  --border:   var(--dark-maroon-border);
+  --fg:       var(--dark-maroon-fg);
+  --fg-2:     var(--dark-maroon-fg2);
+  --muted:    var(--dark-maroon-muted);
+  --accent:   var(--dark-maroon-accent);
+  --accent-h: var(--dark-maroon-accent-h);
+}
+
+/* ─── Light Sage theme palette ─────────────────────────────────────────────── */
+/* Edit --light-sage-* vars to change this theme without affecting others.     */
+html.light-sage {
+  --light-sage-surface:  244 247 241;   /* #F4F7F1 — soft sage-tinted bg    */
+  --light-sage-panel:    255 255 255;   /* #FFFFFF — clean white cards      */
+  --light-sage-sidebar:  228 238 224;   /* #E4EEE0 — muted sage sidebar     */
+  --light-sage-border:   205 220 200;   /* #CDDCC8 — sage border            */
+  --light-sage-fg:       20  35  15;    /* #14230F — deep forest text       */
+  --light-sage-fg2:      72  100 64;    /* #486440 — medium forest          */
+  --light-sage-muted:    148 176 140;   /* #94B08C — faded sage             */
+  --light-sage-accent:   13  148 136;   /* #0D9488 — teal                   */
+  --light-sage-accent-h: 15  118 110;   /* #0F766E — teal hover             */
+
+  /* Active semantic tokens */
+  --surface:  var(--light-sage-surface);
+  --panel:    var(--light-sage-panel);
+  --sidebar:  var(--light-sage-sidebar);
+  --border:   var(--light-sage-border);
+  --fg:       var(--light-sage-fg);
+  --fg-2:     var(--light-sage-fg2);
+  --muted:    var(--light-sage-muted);
+  --accent:   var(--light-sage-accent);
+  --accent-h: var(--light-sage-accent-h);
+}
+
+/* ─── Light Dusk theme palette ──────────────────────────────────────────────── */
+/* Edit --light-dusk-* vars to change this theme without affecting others.      */
+html.light-dusk {
+  --light-dusk-surface:  252 246 238;   /* #FCF6EE — warm cream bg          */
+  --light-dusk-panel:    255 252 247;   /* #FFFCF7 — lightest cream         */
+  --light-dusk-sidebar:  244 231 210;   /* #F4E7D2 — warm amber sidebar     */
+  --light-dusk-border:   228 208 176;   /* #E4D0B0 — warm border            */
+  --light-dusk-fg:       44  26  8;     /* #2C1A08 — dark brown text        */
+  --light-dusk-fg2:      140 90  40;    /* #8C5A28 — warm brown secondary   */
+  --light-dusk-muted:    195 158 108;   /* #C39E6C — muted amber            */
+  --light-dusk-accent:   217 119 6;     /* #D97706 — amber                  */
+  --light-dusk-accent-h: 180 83  9;     /* #B45309 — amber hover            */
+
+  /* Active semantic tokens */
+  --surface:  var(--light-dusk-surface);
+  --panel:    var(--light-dusk-panel);
+  --sidebar:  var(--light-dusk-sidebar);
+  --border:   var(--light-dusk-border);
+  --fg:       var(--light-dusk-fg);
+  --fg-2:     var(--light-dusk-fg2);
+  --muted:    var(--light-dusk-muted);
+  --accent:   var(--light-dusk-accent);
+  --accent-h: var(--light-dusk-accent-h);
+}
+
+/* ─── Light Arctic theme palette ────────────────────────────────────────────── */
+/* Edit --light-arctic-* vars to change this theme without affecting others.    */
+html.light-arctic {
+  --light-arctic-surface:  241 247 254;   /* #F1F7FE — icy white-blue bg    */
+  --light-arctic-panel:    255 255 255;   /* #FFFFFF — white                */
+  --light-arctic-sidebar:  220 237 253;   /* #DCEDFD — light ice blue       */
+  --light-arctic-border:   192 220 248;   /* #C0DCF8 — soft blue border     */
+  --light-arctic-fg:       8   22  42;    /* #08162A — deep navy text       */
+  --light-arctic-fg2:      60  100 148;   /* #3C6494 — medium arctic        */
+  --light-arctic-muted:    136 170 208;   /* #88AAD0 — faded blue           */
+  --light-arctic-accent:   14  165 233;   /* #0EA5E9 — sky blue             */
+  --light-arctic-accent-h: 2   132 199;   /* #0284C7 — sky hover            */
+
+  /* Active semantic tokens */
+  --surface:  var(--light-arctic-surface);
+  --panel:    var(--light-arctic-panel);
+  --sidebar:  var(--light-arctic-sidebar);
+  --border:   var(--light-arctic-border);
+  --fg:       var(--light-arctic-fg);
+  --fg-2:     var(--light-arctic-fg2);
+  --muted:    var(--light-arctic-muted);
+  --accent:   var(--light-arctic-accent);
+  --accent-h: var(--light-arctic-accent-h);
+}
+
+/* ─── Dark Midnight theme palette ───────────────────────────────────────────── */
+/* Edit --dark-midnight-* vars to change this theme without affecting others.   */
+html.dark.dark-midnight {
+  --dark-midnight-surface:  7   10  20;   /* #070A14 — very dark navy       */
+  --dark-midnight-panel:    12  18  34;   /* #0C1222 — dark navy cards      */
+  --dark-midnight-sidebar:  9   14  26;   /* #090E1A — deeper sidebar       */
+  --dark-midnight-border:   28  42  76;   /* #1C2A4C — navy border          */
+  --dark-midnight-fg:       224 234 255;  /* #E0EAFF — cool white           */
+  --dark-midnight-fg2:      120 152 210;  /* #7898D2 — blue-grey secondary  */
+  --dark-midnight-muted:    58  88  148;  /* #3A5894 — muted navy           */
+  --dark-midnight-accent:   96  165 250;  /* #60A5FA — bright blue          */
+  --dark-midnight-accent-h: 59  130 246;  /* #3B82F6 — blue hover           */
+
+  /* Active semantic tokens */
+  --surface:  var(--dark-midnight-surface);
+  --panel:    var(--dark-midnight-panel);
+  --sidebar:  var(--dark-midnight-sidebar);
+  --border:   var(--dark-midnight-border);
+  --fg:       var(--dark-midnight-fg);
+  --fg-2:     var(--dark-midnight-fg2);
+  --muted:    var(--dark-midnight-muted);
+  --accent:   var(--dark-midnight-accent);
+  --accent-h: var(--dark-midnight-accent-h);
+}
+
+/* ─── Dark Ember theme palette ──────────────────────────────────────────────── */
+/* Edit --dark-ember-* vars to change this theme without affecting others.      */
+html.dark.dark-ember {
+  --dark-ember-surface:  16  11  7;     /* #100B07 — very dark warm brown   */
+  --dark-ember-panel:    26  18  11;    /* #1A120B — dark brown cards       */
+  --dark-ember-sidebar:  20  14  9;     /* #140E09 — deeper sidebar         */
+  --dark-ember-border:   56  36  20;    /* #382414 — warm brown border      */
+  --dark-ember-fg:       255 240 225;   /* #FFF0E1 — warm white             */
+  --dark-ember-fg2:      206 158 110;   /* #CE9E6E — warm tan secondary     */
+  --dark-ember-muted:    128 86  48;    /* #805630 — muted amber            */
+  --dark-ember-accent:   249 115 22;    /* #F97316 — orange                 */
+  --dark-ember-accent-h: 234 88  12;    /* #EA580C — orange hover           */
+
+  /* Active semantic tokens */
+  --surface:  var(--dark-ember-surface);
+  --panel:    var(--dark-ember-panel);
+  --sidebar:  var(--dark-ember-sidebar);
+  --border:   var(--dark-ember-border);
+  --fg:       var(--dark-ember-fg);
+  --fg-2:     var(--dark-ember-fg2);
+  --muted:    var(--dark-ember-muted);
+  --accent:   var(--dark-ember-accent);
+  --accent-h: var(--dark-ember-accent-h);
+}
+
+/* ─── Dark Nebula theme palette ─────────────────────────────────────────────── */
+/* Edit --dark-nebula-* vars to change this theme without affecting others.     */
+html.dark.dark-nebula {
+  --dark-nebula-surface:  9   7   20;   /* #090714 — very dark purple       */
+  --dark-nebula-panel:    16  13  34;   /* #100D22 — dark purple cards      */
+  --dark-nebula-sidebar:  12  10  26;   /* #0C0A1A — deeper sidebar         */
+  --dark-nebula-border:   40  32  76;   /* #28204C — purple border          */
+  --dark-nebula-fg:       238 232 255;  /* #EEE8FF — soft purple-white      */
+  --dark-nebula-fg2:      162 144 210;  /* #A290D2 — lavender secondary     */
+  --dark-nebula-muted:    88  72  130;  /* #584882 — muted purple           */
+  --dark-nebula-accent:   167 139 250;  /* #A78BFA — violet                 */
+  --dark-nebula-accent-h: 139 92  246;  /* #8B5CF6 — violet hover           */
+
+  /* Active semantic tokens */
+  --surface:  var(--dark-nebula-surface);
+  --panel:    var(--dark-nebula-panel);
+  --sidebar:  var(--dark-nebula-sidebar);
+  --border:   var(--dark-nebula-border);
+  --fg:       var(--dark-nebula-fg);
+  --fg-2:     var(--dark-nebula-fg2);
+  --muted:    var(--dark-nebula-muted);
+  --accent:   var(--dark-nebula-accent);
+  --accent-h: var(--dark-nebula-accent-h);
+}
+
+@layer base {
+  * { box-sizing: border-box; }
+
+  html, body, #root {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    background-color: rgb(var(--surface));
+    color: rgb(var(--fg));
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgb(var(--border)); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgb(var(--muted)); }
+}
+
+/* Electron Draggable Regions */
+.app-drag {
+  -webkit-app-region: drag;
+}
+.app-no-drag {
+  -webkit-app-region: no-drag;
+}
