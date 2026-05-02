@@ -1,0 +1,10 @@
+node_modules/
+dist/
+electron-dist/
+.claude/
+*.dmg
+*.exe
+*.AppImage
+out/
+.DS_Store
+*.log

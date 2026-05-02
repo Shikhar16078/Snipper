@@ -1,0 +1,42 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest]
+
+    steps:
+      - name: Check out git repository
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build the app
+        run: npm run build:all
+
+      - name: Build/release Electron app
+        uses: samuelmeuli/action-electron-builder@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          release: true
+          # Setting draft to false and prerelease to false to ensure it's a public release
+          args: "--config.publish.provider=github --config.publish.owner=Shikhar16078 --config.publish.repo=Snipper"
+          max_attempts: 3

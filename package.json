@@ -1,0 +1,65 @@
+{
+  "name": "snipper",
+  "private": true,
+  "version": "1.0.0",
+  "main": "electron-dist/main.js",
+  "scripts": {
+    "dev": "vite",
+    "dev:electron": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "build": "tsc -b && vite build",
+    "build:electron": "tsc -p tsconfig.electron.json",
+    "build:all": "npm run build && npm run build:electron",
+    "preview": "vite preview",
+    "package:mac": "npm run build:all && electron-builder --mac",
+    "package:win": "npm run build:all && electron-builder --win"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.3",
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^9.1.2",
+    "electron": "^33.4.0",
+    "electron-builder": "^25.1.8",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.14",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10",
+    "wait-on": "^8.0.1"
+  },
+  "build": {
+    "appId": "com.snipper.app",
+    "productName": "Snipper",
+    "directories": {
+      "buildResources": "assets"
+    },
+    "files": [
+      "dist/**/*",
+      "electron-dist/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Shikhar16078",
+        "repo": "Snipper",
+        "releaseType": "release"
+      }
+    ]
+  }
+}

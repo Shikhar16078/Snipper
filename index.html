@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Snipper</title>
+    <!-- Anti-flash: apply saved theme before first render -->
+    <script>
+      (function () {
+        const t = localStorage.getItem('snipper_theme') || 'stone'
+        const el = document.documentElement
+        if (t === 'stone')             el.classList.add('stone')
+        const darkThemes = ['stone', 'dark', 'dark-maroon', 'dark-midnight', 'dark-ember', 'dark-nebula']
+        if (darkThemes.includes(t))    el.classList.add('dark')
+        if (t === 'light-pink')        el.classList.add('light-pink')
+        if (t === 'light-sage')        el.classList.add('light-sage')
+        if (t === 'light-dusk')        el.classList.add('light-dusk')
+        if (t === 'light-arctic')      el.classList.add('light-arctic')
+        if (t === 'dark-maroon')       el.classList.add('dark-maroon')
+        if (t === 'dark-midnight')     el.classList.add('dark-midnight')
+        if (t === 'dark-ember')        el.classList.add('dark-ember')
+        if (t === 'dark-nebula')       el.classList.add('dark-nebula')
+      })()
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
