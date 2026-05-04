@@ -15,6 +15,7 @@ export interface Snip {
   folderId: string
   name: string
   body: string
+  linkTitles?: Record<string, string>
   createdAt: number
   updatedAt: number
 }

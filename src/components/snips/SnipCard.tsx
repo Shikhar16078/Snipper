@@ -4,19 +4,9 @@ import { useApp } from '../../store/AppContext'
 import { useCopyToClipboard } from '../../hooks/useCopyToClipboard'
 import { useDrag } from '../../context/DragContext'
 import { flattenFolders } from '../../utils/folders'
+import { extractLinks, getLinkTitle } from '../../utils/links'
 import { Modal } from '../modals/Modal'
 import { Button } from '../ui/Button'
-
-function extractUrl(text: string): string | null {
-  const trimmed = text.trim()
-  if (/\s/.test(trimmed)) return null
-  try {
-    const url = new URL(trimmed)
-    return (url.protocol === 'http:' || url.protocol === 'https:') ? trimmed : null
-  } catch {
-    return null
-  }
-}
 
 interface SnipCardProps {
   snip: Snip
@@ -31,10 +21,13 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [menuView, setMenuView] = useState<'main' | 'move'>('main')
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [linksOpen, setLinksOpen] = useState(false)
   const [moveSearch, setMoveSearch] = useState('')
   const [isDragging, setIsDragging] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+  const linksRef = useRef<HTMLDivElement>(null)
   const moveSearchRef = useRef<HTMLInputElement>(null)
+  const links = extractLinks(snip.body)
 
   useEffect(() => {
     if (!menuOpen) return
@@ -50,12 +43,22 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
   }, [menuOpen])
 
   useEffect(() => {
+    if (!linksOpen) return
+    function onOutside(e: MouseEvent) {
+      if (linksRef.current && !linksRef.current.contains(e.target as Node)) setLinksOpen(false)
+    }
+    document.addEventListener('mousedown', onOutside)
+    return () => document.removeEventListener('mousedown', onOutside)
+  }, [linksOpen])
+
+  useEffect(() => {
     if (menuView === 'move') setTimeout(() => moveSearchRef.current?.focus(), 0)
     else setMoveSearch('')
   }, [menuView])
 
   function handleCardClick(e: React.MouseEvent) {
     if (menuRef.current?.contains(e.target as Node)) return
+    if (linksRef.current?.contains(e.target as Node)) return
     copy(snip.body)
   }
 
@@ -102,7 +105,7 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
       onClick={handleCardClick}
       onContextMenu={(e) => { e.preventDefault(); setMenuOpen(true); setMenuView('main') }}
       className={`snip-card relative group select-none rounded-xl border transition-all duration-500 ease-in-out
-        ${menuOpen ? 'z-10' : ''}
+        ${menuOpen || linksOpen ? 'z-20' : ''}
         ${isDragging ? 'opacity-40 scale-95 cursor-grabbing' : 'cursor-pointer'}
         ${copied
           ? 'border-green-500/50 bg-green-500/5 ring-1 ring-green-500/20'
@@ -279,23 +282,62 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
             {snip.body}
           </p>
 
-          {/* Visit button — only shown when body is a plain URL */}
-          {extractUrl(snip.body) && (
+          {links.length > 0 && (
             <div className="mt-3 pt-2.5 border-t border-border/60">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  const url = extractUrl(snip.body)!
-                  if ((window as any).api?.openUrl) (window as any).api.openUrl(url)
-                  else window.open(url, '_blank', 'noopener,noreferrer')
-                }}
-                className="flex items-center gap-1.5 text-xs font-semibold text-accent border border-accent/40 hover:border-accent hover:bg-accent/8 px-2.5 py-1 rounded-lg transition-all"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-                Visit
-              </button>
+              {links.length === 1 ? (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    const url = links[0]
+                    if ((window as any).api?.openUrl) (window as any).api.openUrl(url)
+                    else window.open(url, '_blank', 'noopener,noreferrer')
+                  }}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-accent border border-accent/40 hover:border-accent hover:bg-accent/8 px-2.5 py-1 rounded-lg transition-all"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                  Visit
+                </button>
+              ) : (
+                <div ref={linksRef} className="relative inline-block" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    onClick={() => setLinksOpen((v) => !v)}
+                    className="flex items-center gap-1.5 text-xs font-semibold text-accent border border-accent/40 hover:border-accent hover:bg-accent/8 px-2.5 py-1 rounded-lg transition-all"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 010 5.656l-3 3a4 4 0 11-5.656-5.656l1.5-1.5M10.172 13.828a4 4 0 010-5.656l3-3a4 4 0 115.656 5.656l-1.5 1.5" />
+                    </svg>
+                    Links ({links.length})
+                  </button>
+
+                  {linksOpen && (
+                    <div className="absolute left-0 top-full mt-1 w-64 max-h-44 overflow-y-auto bg-panel border border-border rounded-xl shadow-xl z-50 p-1.5">
+                      {links.map((url) => (
+                        <button
+                          key={url}
+                          onClick={() => {
+                            if ((window as any).api?.openUrl) (window as any).api.openUrl(url)
+                            else window.open(url, '_blank', 'noopener,noreferrer')
+                            setLinksOpen(false)
+                          }}
+                          className="group w-full text-left px-2.5 py-2 rounded-lg border border-transparent hover:border-accent/35 hover:bg-gradient-to-r hover:from-accent/10 hover:to-accent/5 transition-all duration-150"
+                          title={url}
+                        >
+                          <p className="text-[11px] font-semibold text-fg truncate group-hover:text-accent transition-colors">{getLinkTitle(url, snip.linkTitles)}</p>
+                          <div className="flex items-center gap-1">
+                            <p className="text-[10px] text-muted truncate flex-1">{url}</p>
+                            <svg className="w-3 h-3 text-muted group-hover:text-accent opacity-0 group-hover:opacity-100 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 4h6m0 0v6m0-6L10 14" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 14v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2h6" />
+                            </svg>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>

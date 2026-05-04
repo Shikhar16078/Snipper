@@ -4,6 +4,7 @@ import { useCopyToClipboard } from '../../hooks/useCopyToClipboard'
 import { Modal } from '../modals/Modal'
 import { Button } from '../ui/Button'
 import { Settings } from '../ui/Settings'
+import { extractLinks, getLinkTitle } from '../../utils/links'
 import type { TrashedSnip, TrashedFolder } from '../../types'
 
 function timeAgo(ms: number): string {
@@ -14,15 +15,6 @@ function timeAgo(ms: number): string {
   const hrs = Math.floor(mins / 60)
   if (hrs < 24) return `${hrs}h ago`
   return `${Math.floor(hrs / 24)}d ago`
-}
-
-function extractUrl(text: string): string | null {
-  const trimmed = text.trim()
-  if (/\s/.test(trimmed)) return null
-  try {
-    const url = new URL(trimmed)
-    return url.protocol === 'http:' || url.protocol === 'https:' ? trimmed : null
-  } catch { return null }
 }
 
 interface TrashViewProps {
@@ -273,6 +265,9 @@ function TrashedSnipCard({ item, expanded }: { item: TrashedSnip; expanded: bool
   const { copy, copied } = useCopyToClipboard(1500)
   const [confirmRestore, setConfirmRestore] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [linksOpen, setLinksOpen] = useState(false)
+  const linksRef = useRef<HTMLDivElement>(null)
+  const links = extractLinks(item.snip.body)
 
   function restoreDestination() {
     if (!item.snip.folderId) return state.allSnipsLabel || 'All Snips'
@@ -280,13 +275,25 @@ function TrashedSnipCard({ item, expanded }: { item: TrashedSnip; expanded: bool
     return folder ? folder.name : (state.allSnipsLabel || 'All Snips')
   }
 
-  const url = extractUrl(item.snip.body)
+  useEffect(() => {
+    if (!linksOpen) return
+    function onOutside(e: MouseEvent) {
+      if (linksRef.current && !linksRef.current.contains(e.target as Node)) setLinksOpen(false)
+    }
+    document.addEventListener('mousedown', onOutside)
+    return () => document.removeEventListener('mousedown', onOutside)
+  }, [linksOpen])
 
   return (
     <>
       <div
-        onClick={(e) => { if ((e.target as HTMLElement).closest('button')) return; copy(item.snip.body) }}
+        onClick={(e) => {
+          if ((e.target as HTMLElement).closest('button')) return
+          if (linksRef.current?.contains(e.target as Node)) return
+          copy(item.snip.body)
+        }}
         className={`relative group select-none rounded-xl border transition-all duration-500 ease-in-out cursor-pointer
+          ${linksOpen ? 'z-20' : ''}
           ${copied
             ? 'border-green-500/50 bg-green-500/5 ring-1 ring-green-500/20'
             : 'border-border bg-panel hover:border-fg/25 hover:shadow-md'
@@ -315,22 +322,63 @@ function TrashedSnipCard({ item, expanded }: { item: TrashedSnip; expanded: bool
               {item.snip.body}
             </p>
 
-            {/* Footer row: Visit (if URL) + Delete + Recover */}
+            {/* Footer row: Links + Delete + Recover */}
             <div className="mt-3 pt-2.5 border-t border-border/60 flex items-center gap-1.5">
-              {url && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    if ((window as any).api?.openUrl) (window as any).api.openUrl(url)
-                    else window.open(url, '_blank', 'noopener,noreferrer')
-                  }}
-                  className="flex items-center gap-1 text-[11px] font-medium text-accent border border-accent/30 hover:border-accent/60 hover:bg-accent/8 px-2 py-1 rounded-lg transition-colors"
-                >
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                  </svg>
-                  Visit
-                </button>
+              {links.length > 0 && (
+                links.length === 1 ? (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      const url = links[0]
+                      if ((window as any).api?.openUrl) (window as any).api.openUrl(url)
+                      else window.open(url, '_blank', 'noopener,noreferrer')
+                    }}
+                    className="flex items-center gap-1 text-[11px] font-medium text-accent border border-accent/30 hover:border-accent/60 hover:bg-accent/8 px-2 py-1 rounded-lg transition-colors"
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                    Visit
+                  </button>
+                ) : (
+                  <div ref={linksRef} className="relative" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      onClick={() => setLinksOpen((v) => !v)}
+                      className="flex items-center gap-1 text-[11px] font-medium text-accent border border-accent/30 hover:border-accent/60 hover:bg-accent/8 px-2 py-1 rounded-lg transition-colors"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 010 5.656l-3 3a4 4 0 11-5.656-5.656l1.5-1.5M10.172 13.828a4 4 0 010-5.656l3-3a4 4 0 115.656 5.656l-1.5 1.5" />
+                      </svg>
+                      Links ({links.length})
+                    </button>
+
+                    {linksOpen && (
+                      <div className="absolute left-0 top-full mt-1 w-60 max-h-44 overflow-y-auto bg-panel border border-border rounded-xl shadow-xl z-50 p-1.5">
+                        {links.map((url) => (
+                          <button
+                            key={url}
+                            onClick={() => {
+                              if ((window as any).api?.openUrl) (window as any).api.openUrl(url)
+                              else window.open(url, '_blank', 'noopener,noreferrer')
+                              setLinksOpen(false)
+                            }}
+                            className="group w-full text-left px-2.5 py-2 rounded-lg border border-transparent hover:border-accent/35 hover:bg-gradient-to-r hover:from-accent/10 hover:to-accent/5 transition-all duration-150"
+                            title={url}
+                          >
+                            <p className="text-[11px] font-semibold text-fg truncate group-hover:text-accent transition-colors">{getLinkTitle(url, item.snip.linkTitles)}</p>
+                            <div className="flex items-center gap-1">
+                              <p className="text-[10px] text-muted truncate flex-1">{url}</p>
+                              <svg className="w-3 h-3 text-muted group-hover:text-accent opacity-0 group-hover:opacity-100 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 4h6m0 0v6m0-6L10 14" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 14v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2h6" />
+                              </svg>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
               )}
               <div className="flex-1" />
               <button

@@ -2,6 +2,14 @@ import type { AppState, Folder, TrashedFolder, TrashedSnip } from '../types'
 import type { Action } from './actions'
 import { generateId } from '../utils/id'
 
+function sanitizeLinkTitles(linkTitles?: Record<string, string>): Record<string, string> | undefined {
+  if (!linkTitles) return undefined
+  const entries = Object.entries(linkTitles)
+    .map(([url, title]) => [url, title.trim()] as const)
+    .filter(([, title]) => title.length > 0)
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined
+}
+
 function getAllDescendantIds(folderId: string, folders: Folder[]): string[] {
   const children = folders.filter((f) => f.parentId === folderId)
   return children.flatMap((c) => [c.id, ...getAllDescendantIds(c.id, folders)])
@@ -111,6 +119,7 @@ export function reducer(state: AppState, action: Action): AppState {
             folderId: action.payload.folderId,
             name: action.payload.name,
             body: action.payload.body,
+            linkTitles: sanitizeLinkTitles(action.payload.linkTitles),
             createdAt: Date.now(),
             updatedAt: Date.now(),
           },
@@ -127,6 +136,7 @@ export function reducer(state: AppState, action: Action): AppState {
                 name: action.payload.name,
                 body: action.payload.body,
                 folderId: action.payload.folderId,
+                linkTitles: sanitizeLinkTitles(action.payload.linkTitles),
                 updatedAt: Date.now(),
               }
             : s,

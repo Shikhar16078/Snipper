@@ -11,7 +11,7 @@ interface EditSnipModalProps {
 export function EditSnipModal({ snip, onClose }: EditSnipModalProps) {
   const { state, dispatch } = useApp()
 
-  function handleSubmit(values: { name: string; body: string; folderId: string }) {
+  function handleSubmit(values: { name: string; body: string; folderId: string; linkTitles?: Record<string, string> }) {
     if (!snip) return
     dispatch({ type: 'EDIT_SNIP', payload: { id: snip.id, ...values } })
     onClose()
@@ -21,7 +21,7 @@ export function EditSnipModal({ snip, onClose }: EditSnipModalProps) {
     <Modal open={snip !== null} onClose={onClose} title="Edit Snip">
       {snip && (
         <SnipForm
-          initialValues={{ name: snip.name, body: snip.body, folderId: snip.folderId }}
+          initialValues={{ name: snip.name, body: snip.body, folderId: snip.folderId, linkTitles: snip.linkTitles ?? {} }}
           folders={state.folders}
           allSnipsLabel={state.allSnipsLabel || 'All Snips'}
           onSubmit={handleSubmit}
