@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import type { Theme } from '../../types'
 import { useApp } from '../../store/AppContext'
 import { AboutModal } from '../modals/AboutModal'
+import { TipsModal } from '../modals/TipsModal'
 
 interface ThemeOption {
   id: Theme
@@ -56,6 +57,7 @@ export function Settings() {
   const { state, dispatch } = useApp()
   const [open, setOpen] = useState(false)
   const [aboutOpen, setAboutOpen] = useState(false)
+  const [tipsOpen, setTipsOpen] = useState(false)
   const [menuView, setMenuView] = useState<'main' | 'themes'>('main')
   const ref = useRef<HTMLDivElement>(null)
 
@@ -174,8 +176,17 @@ export function Settings() {
 
               <div className="mx-3 my-0.5 border-t border-border" />
 
-              {/* About section */}
-              <div className="px-2 pt-1.5 pb-2">
+              {/* Tips + About section */}
+              <div className="px-2 pt-1.5 pb-2 space-y-0.5">
+                <button
+                  onClick={() => { setOpen(false); setTipsOpen(true) }}
+                  className="w-full text-left pl-1 pr-2 py-1.5 text-xs text-fg-2 hover:text-fg hover:bg-fg/5 rounded-lg transition-colors flex items-center justify-between group"
+                >
+                  <span>View Tips</span>
+                  <svg className="w-3.5 h-3.5 opacity-50 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                  </svg>
+                </button>
                 <button
                   onClick={() => { setOpen(false); setAboutOpen(true); }}
                   className="w-full text-left pl-1 pr-2 py-1.5 text-xs text-fg-2 hover:text-fg hover:bg-fg/5 rounded-lg transition-colors flex items-center justify-between group"
@@ -236,6 +247,7 @@ export function Settings() {
     </div>
 
     <AboutModal open={aboutOpen} onClose={() => setAboutOpen(false)} />
+    <TipsModal open={tipsOpen} onClose={() => setTipsOpen(false)} />
     </>
   )
 }

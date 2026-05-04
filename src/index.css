@@ -334,6 +334,15 @@ html.dark.dark-nebula {
   background: rgb(var(--muted));
 }
 
+/* Modal close — exact reverse of animate-pop */
+@keyframes modal-leave {
+  from { opacity: 1; transform: scale(1); }
+  to   { opacity: 0; transform: scale(0.96); }
+}
+.modal-leave {
+  animation: modal-leave 0.15s ease-in forwards;
+}
+
 /* View transition — enters on every main panel swap */
 @keyframes view-enter {
   from {
