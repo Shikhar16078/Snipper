@@ -202,7 +202,19 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar }: SnipGrid
       {visibleSnips.length === 0 ? (
         <EmptyState onAdd={onAdd} isSearching={!!q} />
       ) : (
-        <div className="flex-1 overflow-y-auto p-4">
+        <div
+          className="flex-1 overflow-y-auto p-4"
+          onMouseDown={(e) => {
+            // Prevent text selection on double-click in the empty space
+            if (e.detail >= 2 && (e.target === e.currentTarget || (e.target as HTMLElement).tagName === 'DIV')) {
+              // We only want to prevent default if they aren't clicking text or an interactive element
+              const target = e.target as HTMLElement
+              if (!target.closest('p, h2, h3, span, button, input, textarea, .snip-card')) {
+                e.preventDefault()
+              }
+            }
+          }}
+        >
           <div className={state.viewMode === 'grid' ? 'grid grid-cols-2 xl:grid-cols-3 gap-3' : 'flex flex-col gap-2'}>
             {visibleSnips.map((snip) => (
               <SnipCard key={snip.id} snip={snip} onEdit={onEdit} expanded={expandAll} />

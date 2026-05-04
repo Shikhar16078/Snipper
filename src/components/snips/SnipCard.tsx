@@ -101,7 +101,7 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
       onDragEnd={handleDragEnd}
       onClick={handleCardClick}
       onContextMenu={(e) => { e.preventDefault(); setMenuOpen(true); setMenuView('main') }}
-      className={`relative group select-none rounded-xl border transition-all duration-500 ease-in-out
+      className={`snip-card relative group select-none rounded-xl border transition-all duration-500 ease-in-out
         ${menuOpen ? 'z-10' : ''}
         ${isDragging ? 'opacity-40 scale-95 cursor-grabbing' : 'cursor-pointer'}
         ${copied
