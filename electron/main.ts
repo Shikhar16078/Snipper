@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import path from 'path'
 import fs from 'fs'
 
@@ -49,6 +49,7 @@ function saveData(data: AppState): void {
 
 ipcMain.handle('store:load', () => loadData())
 ipcMain.handle('store:save', (_event, data: AppState) => saveData(data))
+ipcMain.handle('shell:openUrl', (_event, url: string) => shell.openExternal(url))
 
 function createWindow() {
   const win = new BrowserWindow({

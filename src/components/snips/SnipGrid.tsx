@@ -61,7 +61,6 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar }: SnipGrid
 
   const currentFolder = state.folders.find((f) => f.id === state.selectedFolderId)
   const title = currentFolder ? currentFolder.name : (state.allSnipsLabel || 'All Snips')
-  const hasFolders = state.folders.length > 0
 
   const isMac = window.api?.platform === 'darwin'
 
@@ -182,18 +181,16 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar }: SnipGrid
         </div>
 
         {/* New Snip */}
-        {hasFolders && (
-          <div className="app-no-drag">
-            <Button onClick={onAdd}>
-              <span className="flex items-center gap-1.5">
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                New Snip
-              </span>
-            </Button>
-          </div>
-        )}
+        <div className="app-no-drag">
+          <Button onClick={onAdd}>
+            <span className="flex items-center gap-1.5">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              New Snip
+            </span>
+          </Button>
+        </div>
 
         {/* Settings */}
         <div className="app-no-drag">
@@ -203,7 +200,7 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar }: SnipGrid
 
       {/* ── Cards ── */}
       {visibleSnips.length === 0 ? (
-        <EmptyState onAdd={onAdd} hasFolders={hasFolders} isSearching={!!q} />
+        <EmptyState onAdd={onAdd} isSearching={!!q} />
       ) : (
         <div className="flex-1 overflow-y-auto p-4">
           <div className={state.viewMode === 'grid' ? 'grid grid-cols-2 xl:grid-cols-3 gap-3' : 'flex flex-col gap-2'}>

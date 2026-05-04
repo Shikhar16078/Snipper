@@ -5,6 +5,17 @@ import { useCopyToClipboard } from '../../hooks/useCopyToClipboard'
 import { useDrag } from '../../context/DragContext'
 import { flattenFolders } from '../../utils/folders'
 
+function extractUrl(text: string): string | null {
+  const trimmed = text.trim()
+  if (/\s/.test(trimmed)) return null
+  try {
+    const url = new URL(trimmed)
+    return (url.protocol === 'http:' || url.protocol === 'https:') ? trimmed : null
+  } catch {
+    return null
+  }
+}
+
 interface SnipCardProps {
   snip: Snip
   onEdit: (snip: Snip) => void
@@ -108,7 +119,7 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
         </span>
       </div>
 
-      <div className="p-4">
+      <div className="p-3">
         {/* Content — blurs out when copied so the overlay reads clearly */}
         <div className={`transition-[filter,opacity] duration-500 ease-in-out ${copied ? 'blur-[4px] opacity-20' : 'blur-0 opacity-100'}`}>
           {/* Header row */}
@@ -255,6 +266,26 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
           <p className={`text-xs font-mono leading-relaxed break-words whitespace-pre-wrap text-muted ${expanded ? '' : 'line-clamp-3'}`}>
             {snip.body}
           </p>
+
+          {/* Visit button — only shown when body is a plain URL */}
+          {extractUrl(snip.body) && (
+            <div className="mt-3 pt-2.5 border-t border-border/60">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  const url = extractUrl(snip.body)!
+                  if ((window as any).api?.openUrl) (window as any).api.openUrl(url)
+                  else window.open(url, '_blank', 'noopener,noreferrer')
+                }}
+                className="flex items-center gap-1.5 text-xs font-semibold text-accent border border-accent/40 hover:border-accent hover:bg-accent/8 px-2.5 py-1 rounded-lg transition-all"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+                Visit
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
