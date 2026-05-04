@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Modal } from './Modal'
 import { PatchNotesModal, APP_VERSION } from './PatchNotesModal'
+import appIcon from '../../../assets/icon.png'
 
 interface AboutModalProps {
   open: boolean
@@ -18,7 +19,7 @@ export function AboutModal({ open, onClose }: AboutModalProps) {
       <Modal open={open} onClose={onClose}>
         <div className="flex flex-col items-center text-center pb-2">
           <div className="w-16 h-16 mb-4 flex items-center justify-center">
-            <img src="assets/icon.png" alt="Snipper Logo" className="w-full h-full object-contain rounded-2xl shadow-sm" />
+            <img src={appIcon} alt="Snipper Logo" className="w-full h-full object-contain rounded-2xl shadow-sm" />
           </div>
           <h2 className="text-lg font-bold text-fg">Snipper</h2>
           <p className="text-xs text-muted font-medium mb-4">Version {APP_VERSION}</p>
