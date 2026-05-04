@@ -4,6 +4,7 @@ import { AppProvider, useApp } from './store/AppContext'
 import { DragProvider } from './context/DragContext'
 import { Sidebar } from './components/sidebar/Sidebar'
 import { SnipGrid } from './components/snips/SnipGrid'
+import { TrashView } from './components/trash/TrashView'
 import { AddSnipModal } from './components/modals/AddSnipModal'
 import { EditSnipModal } from './components/modals/EditSnipModal'
 
@@ -17,6 +18,7 @@ function AppShell() {
   const [editTarget, setEditTarget] = useState<Snip | null>(null)
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT)
   const [collapsed, setCollapsed] = useState(false)
+  const [trashOpen, setTrashOpen] = useState(false)
   const widthBeforeCollapse = useRef(SIDEBAR_DEFAULT)
   const isResizing = useRef(false)
 
@@ -83,6 +85,15 @@ function AppShell() {
     }
   }
 
+  // Close trash whenever the user navigates to a folder
+  useEffect(() => {
+    setTrashOpen(false)
+  }, [state.selectedFolderId])
+
+  function toggleTrash() {
+    setTrashOpen((v) => !v)
+  }
+
   return (
     <div className="flex h-screen overflow-hidden">
       {/* Sidebar */}
@@ -93,7 +104,7 @@ function AppShell() {
           transition: isResizing.current ? 'none' : 'width 0.2s ease',
         }}
       >
-        <Sidebar onCollapse={toggleCollapse} />
+        <Sidebar onCollapse={toggleCollapse} trashOpen={trashOpen} onTrashClick={toggleTrash} />
       </div>
 
       {/* Resize + toggle handle */}
@@ -107,7 +118,11 @@ function AppShell() {
 
       {/* Main panel */}
       <div className="flex-1 overflow-hidden relative">
-        <SnipGrid onAdd={() => setAddOpen(true)} onEdit={setEditTarget} collapsed={collapsed} onToggleSidebar={toggleCollapse} />
+        {trashOpen ? (
+          <TrashView collapsed={collapsed} onToggleSidebar={toggleCollapse} />
+        ) : (
+          <SnipGrid onAdd={() => setAddOpen(true)} onEdit={setEditTarget} collapsed={collapsed} onToggleSidebar={toggleCollapse} />
+        )}
       </div>
 
       <AddSnipModal open={addOpen} onClose={() => setAddOpen(false)} />

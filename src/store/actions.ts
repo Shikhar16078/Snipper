@@ -13,8 +13,13 @@ export type Action =
   | { type: 'SET_THEME'; payload: { theme: Theme } }
   | { type: 'SET_ALL_SNIPS_LABEL'; payload: { label: string } }
   | { type: 'SET_TIPS_ENABLED'; payload: boolean }
+  | { type: 'SET_DELETE_CONFIRM_ENABLED'; payload: boolean }
   | { type: 'TOGGLE_EDIT_MODE' }
   | { type: 'ADD_DIVIDER'; payload: { afterFolderId: string | null } }
   | { type: 'MOVE_DIVIDER'; payload: { id: string; afterFolderId: string | null } }
   | { type: 'REMOVE_DIVIDER'; payload: { id: string } }
+  | { type: 'RESTORE_TRASH_ITEM'; payload: { id: string } }
+  | { type: 'RESTORE_ALL_TRASH' }
+  | { type: 'PERMANENTLY_DELETE_TRASH_ITEM'; payload: { id: string } }
+  | { type: 'EMPTY_TRASH' }
   | { type: 'LOAD_STATE'; payload: AppState }

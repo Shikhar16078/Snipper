@@ -3,7 +3,6 @@ import type { Snip, Folder } from '../../types'
 import { useApp } from '../../store/AppContext'
 import { SnipCard } from './SnipCard'
 import { EmptyState } from './EmptyState'
-import { Button } from '../ui/Button'
 import { Settings } from '../ui/Settings'
 import { TipsFooter } from './TipsFooter'
 
@@ -182,14 +181,15 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar }: SnipGrid
 
         {/* New Snip */}
         <div className="app-no-drag">
-          <Button onClick={onAdd}>
-            <span className="flex items-center gap-1.5">
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              New Snip
-            </span>
-          </Button>
+          <button
+            onClick={onAdd}
+            className="flex items-center gap-1.5 bg-accent hover:bg-accent/90 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            New Snip
+          </button>
         </div>
 
         {/* Settings */}

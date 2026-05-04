@@ -56,10 +56,10 @@ export function SeparatorRow({ id, depth }: SeparatorRowProps) {
       draggable={state.isEditMode}
       onDragStart={(e) => { if (!state.isEditMode) return; e.dataTransfer.effectAllowed = 'move'; setDraggingDividerId(id) }}
       onDragEnd={() => setDraggingDividerId(null)}
-      className={`group flex items-center gap-1.5 pr-1 py-0.5 ${state.isEditMode ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}`}
+      className={`group flex items-center gap-1.5 pr-1 py-1 ${state.isEditMode ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}`}
       style={{ paddingLeft: `${4 + indent}px` }}
     >
-      <div className="w-4 h-4 flex items-center justify-center">
+      <div className="w-4 flex-shrink-0 flex items-center justify-center">
         {state.isEditMode && (
           <button
             onClick={(e) => { e.stopPropagation(); dispatch({ type: 'REMOVE_DIVIDER', payload: { id } }) }}

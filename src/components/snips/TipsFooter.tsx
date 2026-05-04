@@ -13,6 +13,7 @@ const TIPS = [
   'Rename any folder by hovering it and clicking the pencil icon.',
   'Hover "All Snips" in the sidebar to rename that view label.',
   'Press Escape to clear the search bar.',
+  'All Snips is a space of its own — snips added there don\'t need to live inside any folder.',
 ]
 
 interface TipsFooterProps {

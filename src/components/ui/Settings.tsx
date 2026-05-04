@@ -139,9 +139,9 @@ export function Settings() {
           <div className="mx-3 my-2 border-t border-border" />
 
           {/* Tips toggle */}
-          <div className="flex items-center justify-between px-3 py-2 pb-3">
+          <div className="flex items-center justify-between px-3 py-2">
             <div>
-              <p className="text-sm text-fg-2 font-medium">Tips</p>
+              <p className="text-xs text-fg-2 font-medium">Tips</p>
               <p className="text-[10px] text-muted mt-0.5">{state.tipsEnabled ? 'Showing tips' : 'Tips hidden'}</p>
             </div>
             <button
@@ -154,6 +154,26 @@ export function Settings() {
             >
               <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${
                 state.tipsEnabled ? 'translate-x-4' : 'translate-x-0'
+              }`} />
+            </button>
+          </div>
+
+          {/* Delete confirm toggle */}
+          <div className="flex items-center justify-between px-3 py-2 pb-3">
+            <div>
+              <p className="text-xs text-fg-2 font-medium">Delete prompt</p>
+              <p className="text-[10px] text-muted mt-0.5">{state.deleteConfirmEnabled ? 'Ask before deleting' : 'Delete directly'}</p>
+            </div>
+            <button
+              role="switch"
+              aria-checked={state.deleteConfirmEnabled}
+              onClick={() => dispatch({ type: 'SET_DELETE_CONFIRM_ENABLED', payload: !state.deleteConfirmEnabled })}
+              className={`relative flex-shrink-0 w-9 h-5 rounded-full transition-colors duration-200 ${
+                state.deleteConfirmEnabled ? 'bg-accent' : 'bg-fg/20'
+              }`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                state.deleteConfirmEnabled ? 'translate-x-4' : 'translate-x-0'
               }`} />
             </button>
           </div>

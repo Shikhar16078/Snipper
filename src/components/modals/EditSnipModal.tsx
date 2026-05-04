@@ -23,6 +23,7 @@ export function EditSnipModal({ snip, onClose }: EditSnipModalProps) {
         <SnipForm
           initialValues={{ name: snip.name, body: snip.body, folderId: snip.folderId }}
           folders={state.folders}
+          allSnipsLabel={state.allSnipsLabel || 'All Snips'}
           onSubmit={handleSubmit}
           onCancel={onClose}
           submitLabel="Save Changes"

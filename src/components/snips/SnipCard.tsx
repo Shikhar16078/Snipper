@@ -4,6 +4,8 @@ import { useApp } from '../../store/AppContext'
 import { useCopyToClipboard } from '../../hooks/useCopyToClipboard'
 import { useDrag } from '../../context/DragContext'
 import { flattenFolders } from '../../utils/folders'
+import { Modal } from '../modals/Modal'
+import { Button } from '../ui/Button'
 
 function extractUrl(text: string): string | null {
   const trimmed = text.trim()
@@ -28,6 +30,7 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
   const { setDraggingSnipId } = useDrag()
   const [menuOpen, setMenuOpen] = useState(false)
   const [menuView, setMenuView] = useState<'main' | 'move'>('main')
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [moveSearch, setMoveSearch] = useState('')
   const [isDragging, setIsDragging] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -91,6 +94,7 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
   }
 
   return (
+    <>
     <div
       draggable
       onDragStart={handleDragStart}
@@ -98,6 +102,7 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
       onClick={handleCardClick}
       onContextMenu={(e) => { e.preventDefault(); setMenuOpen(true); setMenuView('main') }}
       className={`relative group select-none rounded-xl border transition-all duration-500 ease-in-out
+        ${menuOpen ? 'z-10' : ''}
         ${isDragging ? 'opacity-40 scale-95 cursor-grabbing' : 'cursor-pointer'}
         ${copied
           ? 'border-green-500/50 bg-green-500/5 ring-1 ring-green-500/20'
@@ -169,7 +174,14 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
                       </button>
                       <div className="border-t border-border mx-2 my-1" />
                       <button
-                        onClick={() => { dispatch({ type: 'DELETE_SNIP', payload: { id: snip.id } }); setMenuOpen(false) }}
+                        onClick={() => {
+                          setMenuOpen(false)
+                          if (state.deleteConfirmEnabled) {
+                            setDeleteConfirmOpen(true)
+                          } else {
+                            dispatch({ type: 'DELETE_SNIP', payload: { id: snip.id } })
+                          }
+                        }}
                         className="w-full text-left px-3 py-1.5 text-xs text-red-500 hover:bg-red-500/8 transition-colors flex items-center gap-2"
                       >
                         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -289,5 +301,24 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
         </div>
       </div>
     </div>
+
+    <Modal open={deleteConfirmOpen} onClose={() => setDeleteConfirmOpen(false)} title="Move to Trash?">
+      <p className="text-xs text-muted mb-5">
+        <span className="font-semibold text-fg">{snip.name}</span> will be moved to Trash. You can restore it later.
+      </p>
+      <div className="flex justify-end gap-2">
+        <Button variant="ghost" onClick={() => setDeleteConfirmOpen(false)}>Cancel</Button>
+        <button
+          onClick={() => {
+            dispatch({ type: 'DELETE_SNIP', payload: { id: snip.id } })
+            setDeleteConfirmOpen(false)
+          }}
+          className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500 hover:bg-red-600 text-white transition-colors"
+        >
+          Move to Trash
+        </button>
+      </div>
+    </Modal>
+    </>
   )
 }

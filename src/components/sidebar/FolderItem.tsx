@@ -10,9 +10,10 @@ interface FolderItemProps {
   folder: Folder
   isSelected: boolean
   depth: number
+  onNavigate?: () => void
 }
 
-export function FolderItem({ folder, isSelected, depth }: FolderItemProps) {
+export function FolderItem({ folder, isSelected, depth, onNavigate }: FolderItemProps) {
   const { state, dispatch } = useApp()
   const { draggingSnipId } = useDrag()
   const [isExpanded, setIsExpanded] = useState(true)
@@ -70,7 +71,11 @@ export function FolderItem({ folder, isSelected, depth }: FolderItemProps) {
 
   function handleDelete(e: React.MouseEvent) {
     e.stopPropagation()
-    setShowDeleteModal(true)
+    if (state.deleteConfirmEnabled) {
+      setShowDeleteModal(true)
+    } else {
+      dispatch({ type: 'DELETE_FOLDER', payload: { id: folder.id } })
+    }
   }
 
   const indent = depth * 14
@@ -79,7 +84,7 @@ export function FolderItem({ folder, isSelected, depth }: FolderItemProps) {
     <div>
       {/* Row */}
       <div
-        style={{ paddingLeft: `${8 + indent}px` }}
+        style={{ paddingLeft: '8px', marginLeft: indent > 0 ? `${indent}px` : undefined }}
         className={`group flex items-center gap-1.5 pr-2 py-1.5 rounded-lg cursor-pointer transition-colors ${
           isDragOver
             ? 'bg-accent/15 text-accent ring-1 ring-accent/50'
@@ -87,7 +92,7 @@ export function FolderItem({ folder, isSelected, depth }: FolderItemProps) {
               ? 'bg-accent/10 text-accent'
               : 'text-fg-2 hover:text-fg hover:bg-fg/6'
         }`}
-        onClick={() => { if (!isRenaming) dispatch({ type: 'SELECT_FOLDER', payload: { id: folder.id } }) }}
+        onClick={() => { if (!isRenaming) { dispatch({ type: 'SELECT_FOLDER', payload: { id: folder.id } }); onNavigate?.() } }}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
@@ -184,18 +189,18 @@ export function FolderItem({ folder, isSelected, depth }: FolderItemProps) {
         ).length
         const hasContents = subfolderCount > 0 || snipCount > 0
         return (
-          <Modal open={showDeleteModal} onClose={() => setShowDeleteModal(false)} title="Delete folder?">
+          <Modal open={showDeleteModal} onClose={() => setShowDeleteModal(false)} title="Move to Trash?">
             <p className="text-sm text-fg-2 mb-3">
-              You're about to delete <span className="font-semibold text-fg">"{folder.name}"</span>.
+              <span className="font-semibold text-fg">"{folder.name}"</span> will be moved to Trash.
             </p>
             {hasContents && (
-              <div className="bg-red-500/8 border border-red-500/20 rounded-lg px-3 py-2.5 mb-4 text-xs text-red-500 space-y-1">
-                <p className="font-medium">This will also permanently delete:</p>
+              <div className="bg-fg/5 border border-border rounded-lg px-3 py-2.5 mb-4 text-xs text-fg-2 space-y-1">
+                <p className="font-medium">Also includes:</p>
                 {snipCount > 0 && <p>· {snipCount} snip{snipCount !== 1 ? 's' : ''}</p>}
                 {subfolderCount > 0 && <p>· {subfolderCount} subfolder{subfolderCount !== 1 ? 's' : ''}</p>}
               </div>
             )}
-            <p className="text-xs text-muted mb-5">This action cannot be undone.</p>
+            <p className="text-xs text-muted mb-5">You can restore it from Trash later.</p>
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setShowDeleteModal(false)}
@@ -210,7 +215,7 @@ export function FolderItem({ folder, isSelected, depth }: FolderItemProps) {
                 }}
                 className="px-3 py-1.5 text-xs rounded-lg bg-red-500 hover:bg-red-600 text-white font-medium transition-colors"
               >
-                Delete
+                Move to Trash
               </button>
             </div>
           </Modal>
@@ -239,6 +244,7 @@ export function FolderItem({ folder, isSelected, depth }: FolderItemProps) {
           folder={child}
           isSelected={state.selectedFolderId === child.id}
           depth={depth + 1}
+          onNavigate={onNavigate}
         />
       ))}
 
