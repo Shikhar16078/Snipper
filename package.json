@@ -35,7 +35,8 @@
     "appId": "com.snipper.app",
     "productName": "Snipper",
     "directories": {
-      "buildResources": "assets"
+      "buildResources": "assets",
+      "output": "release"
     },
     "files": [
       "dist/**/*",

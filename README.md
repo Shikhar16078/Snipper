@@ -129,8 +129,8 @@ npm run dev:electron    # Starts the app with hot reload
 
 ```bash
 npm run build:all       # Compile renderer + Electron main process
-npm run package:mac     # Package for macOS → dist/mac-arm64/Snipper.app
-npm run package:win     # Package for Windows → dist/
+npm run package:mac     # Package for macOS → release/mac-arm64/Snipper.app
+npm run package:win     # Package for Windows → release/
 ```
 
 ### Tech Stack
