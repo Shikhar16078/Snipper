@@ -4,9 +4,8 @@ import { AppProvider, useApp } from './store/AppContext'
 import { DragProvider } from './context/DragContext'
 import { Sidebar } from './components/sidebar/Sidebar'
 import { SnipGrid } from './components/snips/SnipGrid'
+import { SnipEditorView } from './components/snips/SnipEditorView'
 import { TrashView } from './components/trash/TrashView'
-import { AddSnipModal } from './components/modals/AddSnipModal'
-import { EditSnipModal } from './components/modals/EditSnipModal'
 
 const SIDEBAR_MIN = 200
 const SIDEBAR_MAX = 420
@@ -14,7 +13,7 @@ const SIDEBAR_DEFAULT = 210
 
 function AppShell() {
   const { state } = useApp()
-  const [addOpen, setAddOpen] = useState(false)
+  const [createOpen, setCreateOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<Snip | null>(null)
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT)
   const [collapsed, setCollapsed] = useState(false)
@@ -48,7 +47,9 @@ function AppShell() {
         !(e.target instanceof HTMLTextAreaElement)
       ) {
         e.preventDefault()
-        setAddOpen(true)
+        setTrashOpen(false)
+        setEditTarget(null)
+        setCreateOpen(true)
       }
     }
     document.addEventListener('keydown', onKey)
@@ -94,6 +95,18 @@ function AppShell() {
     setTrashOpen((v) => !v)
   }
 
+  function openEditor(snip: Snip) {
+    setCreateOpen(false)
+    setTrashOpen(false)
+    setEditTarget(snip)
+  }
+
+  function openCreateEditor() {
+    setTrashOpen(false)
+    setEditTarget(null)
+    setCreateOpen(true)
+  }
+
   return (
     <div className="flex h-screen overflow-hidden">
       {/* Sidebar */}
@@ -118,15 +131,30 @@ function AppShell() {
 
       {/* Main panel */}
       <div className="flex-1 overflow-hidden relative">
-        {trashOpen ? (
+        {createOpen ? (
+          <SnipEditorView
+            key={`create-${state.selectedFolderId ?? 'all'}`}
+            mode="create"
+            initialFolderId={state.selectedFolderId ?? ''}
+            collapsed={collapsed}
+            onToggleSidebar={toggleCollapse}
+            onClose={() => setCreateOpen(false)}
+          />
+        ) : editTarget ? (
+          <SnipEditorView
+            key={`edit-${editTarget.id}`}
+            mode="edit"
+            snip={editTarget}
+            collapsed={collapsed}
+            onToggleSidebar={toggleCollapse}
+            onClose={() => setEditTarget(null)}
+          />
+        ) : trashOpen ? (
           <TrashView collapsed={collapsed} onToggleSidebar={toggleCollapse} />
         ) : (
-          <SnipGrid onAdd={() => setAddOpen(true)} onEdit={setEditTarget} collapsed={collapsed} onToggleSidebar={toggleCollapse} />
+          <SnipGrid onAdd={openCreateEditor} onEdit={openEditor} collapsed={collapsed} onToggleSidebar={toggleCollapse} />
         )}
       </div>
-
-      <AddSnipModal open={addOpen} onClose={() => setAddOpen(false)} />
-      <EditSnipModal snip={editTarget} onClose={() => setEditTarget(null)} />
     </div>
   )
 }
