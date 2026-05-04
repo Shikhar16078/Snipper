@@ -1,0 +1,15 @@
+[
+  {
+    "version": "1.0.0",
+    "date": "May 4, 2026",
+    "changes": [
+      "Initial release of Snipper",
+      "Added snippet categorization with nested folders",
+      "Implemented full native drag-and-drop for organizing folders and snips",
+      "Added quick copy functionality",
+      "Added dark and light themes with varying accent colors",
+      "Added trash view with restore capabilities",
+      "Prevented text selection issues on canvas double click"
+    ]
+  }
+]

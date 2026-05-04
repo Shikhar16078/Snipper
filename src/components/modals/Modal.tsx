@@ -3,7 +3,7 @@ import { useEffect, useRef, type ReactNode } from 'react'
 interface ModalProps {
   open: boolean
   onClose: () => void
-  title: string
+  title?: string
   children: ReactNode
 }
 
@@ -33,7 +33,7 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
         className="bg-panel border border-border rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6 animate-pop"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-sm font-semibold text-fg mb-5">{title}</h2>
+        {title && <h2 className="text-sm font-semibold text-fg mb-5">{title}</h2>}
         {children}
       </div>
     </div>

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import type { Theme } from '../../types'
 import { useApp } from '../../store/AppContext'
+import { AboutModal } from '../modals/AboutModal'
 
 interface ThemeOption {
   id: Theme
@@ -54,6 +55,7 @@ function ThemeRow({ t, active, onSelect }: { t: ThemeOption; active: boolean; on
 export function Settings() {
   const { state, dispatch } = useApp()
   const [open, setOpen] = useState(false)
+  const [aboutOpen, setAboutOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -73,6 +75,7 @@ export function Settings() {
   const iconColor = ALL_THEMES.find((t) => t.id === state.theme)?.accent ?? '#4F46E5'
 
   return (
+    <>
     <div ref={ref} className="relative">
       {/* Gear trigger — fills navbar height */}
       <button
@@ -177,8 +180,26 @@ export function Settings() {
               }`} />
             </button>
           </div>
+
+          <div className="mx-3 my-1 border-t border-border" />
+
+          {/* About section */}
+          <div className="px-2 pt-1 pb-2">
+            <button
+              onClick={() => { setOpen(false); setAboutOpen(true); }}
+              className="w-full text-left pl-1 pr-2 py-1.5 text-xs text-fg-2 hover:text-fg hover:bg-fg/5 rounded-lg transition-colors flex items-center justify-between group"
+            >
+              <span>About Snipper</span>
+              <svg className="w-4 h-4 opacity-50 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </button>
+          </div>
         </div>
       )}
     </div>
+
+    <AboutModal open={aboutOpen} onClose={() => setAboutOpen(false)} />
+    </>
   )
 }
