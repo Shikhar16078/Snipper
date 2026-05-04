@@ -25,6 +25,11 @@ declare global {
       platform: string
       loadData: () => Promise<AppState>
       saveData: (data: AppState) => Promise<void>
+      openUrl?: (url: string) => Promise<void>
+      titlebarDoubleClick?: () => Promise<void>
+      dragStart?: (mouseX: number, mouseY: number) => void
+      dragMove?: (mouseX: number, mouseY: number) => void
+      dragEnd?: () => void
     }
   }
 }

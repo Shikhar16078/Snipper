@@ -62,7 +62,7 @@ export function TrashView({ collapsed, onToggleSidebar }: TrashViewProps) {
       <div
         className={`flex items-center gap-2 pr-4 border-b border-border flex-shrink-0 transition-[padding] duration-200 ${
           isMac
-            ? `app-drag select-none h-[40px] ${collapsed ? 'pl-[80px]' : 'pl-4'}`
+            ? `drag-region select-none h-[40px] ${collapsed ? 'pl-[80px]' : 'pl-4'}`
             : 'py-2.5 pl-4'
         }`}
       >
@@ -80,7 +80,7 @@ export function TrashView({ collapsed, onToggleSidebar }: TrashViewProps) {
         )}
 
         {/* Title badge */}
-        <div className="flex items-center gap-1.5 bg-panel border border-border shadow-sm rounded-lg px-2.5 h-[26px] mr-1 app-no-drag">
+        <div className="flex items-center gap-1.5 bg-panel border border-border shadow-sm rounded-lg px-2.5 h-[26px] mr-1">
           <svg className="w-3.5 h-3.5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4h6v3M3 7h18" />
           </svg>
@@ -88,18 +88,18 @@ export function TrashView({ collapsed, onToggleSidebar }: TrashViewProps) {
         </div>
 
         {visibleItems.length > 0 && !q && (
-          <span className="flex items-center justify-center min-w-[26px] h-[26px] text-[10px] font-bold text-muted bg-panel border border-border px-1.5 rounded-md shadow-sm tabular-nums app-no-drag">
+          <span className="flex items-center justify-center min-w-[26px] h-[26px] text-[10px] font-bold text-muted bg-panel border border-border px-1.5 rounded-md shadow-sm tabular-nums">
             {visibleItems.length}
           </span>
         )}
         {q && (
-          <span className="flex items-center justify-center h-[26px] text-[10px] font-bold text-accent bg-accent/8 border border-accent/20 px-2 rounded-md shadow-sm tabular-nums app-no-drag">
+          <span className="flex items-center justify-center h-[26px] text-[10px] font-bold text-accent bg-accent/8 border border-accent/20 px-2 rounded-md shadow-sm tabular-nums">
             {visibleItems.length} result{visibleItems.length !== 1 ? 's' : ''}
           </span>
         )}
 
         {/* Search */}
-        <div className="flex-1 flex items-center justify-center px-4 app-no-drag">
+        <div className="flex-1 flex items-center justify-center px-4">
           <div className="relative w-full max-w-md">
             <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -110,12 +110,12 @@ export function TrashView({ collapsed, onToggleSidebar }: TrashViewProps) {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search trash…"
-              className="w-full bg-panel border border-border rounded-lg pl-8 pr-8 py-1 text-xs text-fg placeholder-muted focus:outline-none focus:border-accent transition-colors"
+              className="w-full bg-panel border border-border rounded-lg pl-8 pr-8 py-1 text-xs text-fg placeholder-muted focus:outline-none focus:border-accent transition-colors app-no-drag"
             />
             {search && (
               <button
                 onClick={() => { setSearch(''); searchRef.current?.focus() }}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted hover:text-fg transition-colors"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted hover:text-fg transition-colors app-no-drag"
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -138,10 +138,10 @@ export function TrashView({ collapsed, onToggleSidebar }: TrashViewProps) {
         </button>
 
         {/* View mode toggle */}
-        <div className="flex items-center bg-fg/6 rounded-lg p-0.5 app-no-drag">
+        <div className="flex items-center bg-fg/6 rounded-lg p-0.5">
           <button
             onClick={() => dispatch({ type: 'SET_VIEW_MODE', payload: { mode: 'grid' } })}
-            className={`p-1.5 rounded-md transition-colors ${state.viewMode === 'grid' ? 'bg-panel text-fg shadow-sm' : 'text-muted hover:text-fg-2'}`}
+            className={`p-1.5 rounded-md transition-colors app-no-drag ${state.viewMode === 'grid' ? 'bg-panel text-fg shadow-sm' : 'text-muted hover:text-fg-2'}`}
             title="Grid view"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -150,7 +150,7 @@ export function TrashView({ collapsed, onToggleSidebar }: TrashViewProps) {
           </button>
           <button
             onClick={() => dispatch({ type: 'SET_VIEW_MODE', payload: { mode: 'list' } })}
-            className={`p-1.5 rounded-md transition-colors ${state.viewMode === 'list' ? 'bg-panel text-fg shadow-sm' : 'text-muted hover:text-fg-2'}`}
+            className={`p-1.5 rounded-md transition-colors app-no-drag ${state.viewMode === 'list' ? 'bg-panel text-fg shadow-sm' : 'text-muted hover:text-fg-2'}`}
             title="List view"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -161,38 +161,32 @@ export function TrashView({ collapsed, onToggleSidebar }: TrashViewProps) {
 
         {/* Recover All */}
         {state.trash.length > 0 && (
-          <div className="app-no-drag">
-            <button
-              onClick={() => setConfirmRecoverAll(true)}
-              className="flex items-center gap-1.5 bg-accent hover:bg-accent/90 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-              </svg>
-              Recover All
-            </button>
-          </div>
+          <button
+            onClick={() => setConfirmRecoverAll(true)}
+            className="flex items-center gap-1.5 bg-accent hover:bg-accent/90 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors app-no-drag"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+            </svg>
+            Recover All
+          </button>
         )}
 
         {/* Empty Trash */}
         {state.trash.length > 0 && (
-          <div className="app-no-drag">
-            <button
-              onClick={() => setConfirmEmptyTrash(true)}
-              className="flex items-center gap-1.5 bg-red-500 hover:bg-red-600 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4h6v3M3 7h18" />
-              </svg>
-              Empty Trash
-            </button>
-          </div>
+          <button
+            onClick={() => setConfirmEmptyTrash(true)}
+            className="flex items-center gap-1.5 bg-red-500 hover:bg-red-600 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors app-no-drag"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4h6v3M3 7h18" />
+            </svg>
+            Empty Trash
+          </button>
         )}
 
         {/* Settings */}
-        <div className="app-no-drag">
-          <Settings />
-        </div>
+        <Settings />
       </div>
 
       {/* Cards */}

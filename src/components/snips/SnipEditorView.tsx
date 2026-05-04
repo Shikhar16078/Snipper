@@ -250,7 +250,7 @@ export function SnipEditorView({
       )}
       <div
         className={`flex items-center gap-2 pr-4 border-b border-border flex-shrink-0 transition-[padding] duration-200 ${
-          isMac ? `app-drag select-none h-[40px] ${collapsed ? 'pl-[80px]' : 'pl-4'}` : 'py-2.5 pl-4'
+          isMac ? `drag-region select-none h-[40px] ${collapsed ? 'pl-[80px]' : 'pl-4'}` : 'py-2.5 pl-4'
         }`}
       >
         {collapsed && (
@@ -269,7 +269,7 @@ export function SnipEditorView({
         <div className="flex items-center gap-2 min-w-0 app-no-drag">
           <button
             onClick={handleClose}
-            className="p-1.5 rounded-md text-muted hover:text-fg hover:bg-fg/8 transition-colors"
+            className="p-1.5 rounded-md text-muted hover:text-fg hover:bg-fg/8 transition-colors app-no-drag"
             title="Back to snips"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -89,7 +89,7 @@ export function Settings() {
         onClick={() => setOpen((o) => !o)}
         title="Settings"
         style={{ color: open ? iconColor : undefined }}
-        className={`flex items-center justify-center w-9 h-9 rounded-lg transition-colors ${
+        className={`flex items-center justify-center w-9 h-9 rounded-lg transition-colors app-no-drag ${
           open ? 'bg-accent/10 hover:bg-accent/15' : 'text-muted hover:text-fg hover:bg-fg/8'
         }`}
       >

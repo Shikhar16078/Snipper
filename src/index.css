@@ -356,5 +356,5 @@ html.dark.dark-nebula {
 }
 
 .view-enter {
-  animation: view-enter 0.32s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation: view-enter 0.32s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }

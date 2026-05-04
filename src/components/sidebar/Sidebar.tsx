@@ -56,10 +56,10 @@ export function Sidebar({ onCollapse, trashOpen, onTrashClick }: SidebarProps) {
         <span className="text-[10px] font-semibold tracking-[0.15em] uppercase text-muted select-none pl-1">
           Snipper
         </span>
-        <div className="flex items-center gap-1 app-no-drag">
+        <div className="flex items-center gap-1">
           <button
             onClick={() => dispatch({ type: 'TOGGLE_EDIT_MODE' })}
-            className={`p-1.5 rounded-md transition-colors ${
+            className={`p-1.5 rounded-md transition-colors app-no-drag ${
               state.isEditMode
                 ? 'bg-accent text-white hover:bg-accent/90'
                 : 'text-muted hover:text-fg hover:bg-fg/8'
@@ -72,7 +72,7 @@ export function Sidebar({ onCollapse, trashOpen, onTrashClick }: SidebarProps) {
           </button>
           <button
             onClick={onCollapse}
-            className="p-1.5 rounded-md text-accent bg-accent/10 hover:bg-accent/15 transition-colors"
+            className="p-1.5 rounded-md text-accent bg-accent/10 hover:bg-accent/15 transition-colors app-no-drag"
             title="Collapse sidebar"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
