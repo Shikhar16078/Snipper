@@ -42,7 +42,7 @@ Search across all your snippets by name or content from the top search bar (`Cmd
 
 ### ➕ Drag & Drop
 
-Move snippets between folders by dragging them. Reorder your sidebar with custom separators — drag them between folders to create visual groups.
+Move snippets between folders by dragging them. In Organize mode, drag folders themselves to reorder them in the sidebar. Add custom separators between folders to create visual groups — those are draggable too.
 
 ### 🎨 11 Themes
 
@@ -56,6 +56,18 @@ Choose from 11 built-in themes across light and dark palettes:
 | Dusk | Midnight |
 | Arctic | Ember |
 | | Nebula |
+
+### 📝 Full-Canvas Editor
+
+Creating or editing a snip opens a distraction-free full-canvas editor with a large writing area and a resizable side panel. The side panel shows the folder picker, timestamps, and a live link manager — any URLs detected in the body appear there so you can assign custom display titles.
+
+### 🔗 Smart Link Detection
+
+Snipper automatically detects URLs in your snippet body. If the entire body is a URL, a **Visit** button appears on the card to open it in your default browser. For snippets with multiple links, each URL gets its own labelled action button — customizable via the editor's link manager.
+
+### 🗑️ Trash & Restore
+
+Deleted snippets and folders go to Trash instead of being permanently removed. Open Trash from the sidebar to browse recently deleted items, restore them with one click, or permanently delete what you don't need. Restoring a folder brings back its entire nested structure.
 
 ### 🗃️ Grid & List Views
 
@@ -71,7 +83,8 @@ Everything is stored as a plain JSON file on your own machine. Nothing is sent t
 | --- | --- |
 | `N` | New snippet |
 | `Cmd/Ctrl + F` | Focus search |
-| `Escape` | Clear search |
+| `Cmd/Ctrl + S` | Save in editor |
+| `Escape` | Close editor / clear search |
 
 ---
 
@@ -98,7 +111,7 @@ Download and run the `.exe` installer and follow the setup wizard.
 1. **Create a folder** — Type a name into the search field on the left sidebar and click `+`, or press Enter.
 2. **Add a snippet** — Click **New Snip** in the top right (or press `N`). Give it a name and paste in the text you want to save.
 3. **Copy** — Click any card to copy its content to your clipboard instantly.
-4. **Organize** — Enable **Organize mode** (the sliders icon in the sidebar header) to rename folders, add separators, or delete items.
+4. **Organize** — Enable **Organize mode** (the sliders icon in the sidebar header) to rename folders, drag-reorder them, add separators, or delete items.
 
 ---
 

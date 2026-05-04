@@ -310,3 +310,26 @@ html.dark.dark-nebula {
 .app-no-drag {
   -webkit-app-region: no-drag;
 }
+
+/* Unified scrollbar style for editor panes */
+.snip-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--border)) transparent;
+}
+
+.snip-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+.snip-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.snip-scroll::-webkit-scrollbar-thumb {
+  background: rgb(var(--border));
+  border-radius: 4px;
+}
+
+.snip-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--muted));
+}

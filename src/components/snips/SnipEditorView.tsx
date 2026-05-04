@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Snip } from '../../types'
 import { useApp } from '../../store/AppContext'
 import { Input } from '../ui/Input'
@@ -49,6 +49,20 @@ function formatDate(ts: number): string {
   return new Date(ts).toLocaleString()
 }
 
+const RIGHT_PANEL_DEFAULT = 320
+const RIGHT_PANEL_MIN = 260
+const RIGHT_PANEL_MAX = 520
+const RIGHT_PANEL_AUTO_COLLAPSE_WIDTH = 960
+
+function maxRightPanelWidth(viewportWidth: number): number {
+  return Math.min(RIGHT_PANEL_MAX, Math.max(RIGHT_PANEL_MIN, Math.floor(viewportWidth * 0.45)))
+}
+
+function clampRightPanelWidth(width: number, viewportWidth: number): number {
+  const max = maxRightPanelWidth(viewportWidth)
+  return Math.min(max, Math.max(RIGHT_PANEL_MIN, width))
+}
+
 export function SnipEditorView({
   mode,
   snip,
@@ -66,6 +80,11 @@ export function SnipEditorView({
   const [folderId, setFolderId] = useState(initialFolderId)
   const [linkTitles, setLinkTitles] = useState<Record<string, string>>({})
   const [rightPanelOpen, setRightPanelOpen] = useState(true)
+  const [rightPanelWidth, setRightPanelWidth] = useState(() =>
+    clampRightPanelWidth(RIGHT_PANEL_DEFAULT, window.innerWidth),
+  )
+  const [isRightResizingUI, setIsRightResizingUI] = useState(false)
+  const isRightResizing = useRef(false)
 
   useEffect(() => {
     if (isEditMode && currentSnip) {
@@ -96,6 +115,43 @@ export function SnipEditorView({
       return next
     })
   }, [detectedLinks])
+
+  useEffect(() => {
+    function onResize() {
+      const vw = window.innerWidth
+      setRightPanelWidth((prev) => clampRightPanelWidth(prev, vw))
+      if (vw < RIGHT_PANEL_AUTO_COLLAPSE_WIDTH) {
+        setRightPanelOpen(false)
+      }
+    }
+    window.addEventListener('resize', onResize)
+    onResize()
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
+  const startRightResize = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    isRightResizing.current = true
+    setIsRightResizingUI(true)
+    const startX = e.clientX
+    const startWidth = rightPanelWidth
+
+    function onMove(ev: MouseEvent) {
+      if (!isRightResizing.current) return
+      const delta = startX - ev.clientX
+      setRightPanelWidth(clampRightPanelWidth(startWidth + delta, window.innerWidth))
+    }
+
+    function onUp() {
+      isRightResizing.current = false
+      setIsRightResizingUI(false)
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }, [rightPanelWidth])
 
   const originalCanonical: CanonicalDraft = useMemo(() => {
     if (isEditMode && currentSnip) {
@@ -239,8 +295,8 @@ export function SnipEditorView({
         </button>
       </div>
 
-      <div className={`flex-1 min-h-0 grid ${rightPanelOpen ? 'grid-cols-[minmax(0,1fr)_320px]' : 'grid-cols-[minmax(0,1fr)]'}`}>
-        <div className="min-h-0 px-7 py-6">
+      <div className="flex-1 min-h-0 flex overflow-hidden">
+        <div className="min-h-0 flex-1 min-w-0 px-7 py-6">
           <div className="h-full max-w-3xl mx-auto flex flex-col">
             <input
               value={name}
@@ -256,79 +312,96 @@ export function SnipEditorView({
               value={body}
               onChange={(e) => setBody(e.target.value)}
               placeholder="Start writing..."
-              className="flex-1 min-h-0 w-full resize-none bg-transparent border-0 outline-none text-[15px] leading-7 text-fg-2 placeholder:text-muted/75 px-0"
+              className="snip-scroll flex-1 min-h-0 w-full resize-none bg-transparent border-0 outline-none text-[15px] leading-7 text-fg-2 placeholder:text-muted/75 px-0"
             />
           </div>
         </div>
 
-        {rightPanelOpen ? (
-          <aside className="border-l border-border bg-panel/45 p-4 overflow-y-auto">
-            <div className="space-y-4">
-              <section className="rounded-xl border border-border bg-panel p-3">
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-[10px] font-semibold tracking-wide uppercase text-muted mb-1">Folder</label>
-                    <FolderSelect
-                      folders={state.folders}
-                      value={folderId}
-                      onChange={setFolderId}
-                      allSnipsLabel={state.allSnipsLabel || 'All Snips'}
+        <div
+          className="flex-shrink-0 relative group overflow-hidden"
+          style={{
+            width: rightPanelOpen ? 4 : 0,
+            transition: isRightResizingUI ? 'none' : 'width 0.2s ease',
+            cursor: rightPanelOpen ? 'col-resize' : 'default',
+          }}
+          onMouseDown={rightPanelOpen ? startRightResize : undefined}
+          title={rightPanelOpen ? 'Resize side panel' : undefined}
+        >
+          <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-px bg-border group-hover:bg-accent/60 transition-colors" />
+        </div>
+
+        <div
+          className="flex-shrink-0 overflow-hidden"
+          style={{
+            width: rightPanelOpen ? rightPanelWidth : 0,
+            transition: isRightResizingUI ? 'none' : 'width 0.2s ease',
+          }}
+        >
+        <aside className="border-l border-border bg-panel/45 p-4 h-full flex flex-col gap-4" style={{ width: rightPanelWidth }}>
+          <section className="flex-shrink-0 rounded-xl border border-border bg-panel p-3">
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[10px] font-semibold tracking-wide uppercase text-muted mb-1">Folder</label>
+                <FolderSelect
+                  folders={state.folders}
+                  value={folderId}
+                  onChange={setFolderId}
+                  allSnipsLabel={state.allSnipsLabel || 'All Snips'}
+                />
+              </div>
+              {isEditMode && currentSnip ? (
+                <div className="text-[10px] text-muted">
+                  <p>Created: {formatDate(currentSnip.createdAt)}</p>
+                  <p>Updated: {formatDate(currentSnip.updatedAt)}</p>
+                </div>
+              ) : (
+                <p className="text-[10px] text-muted">A new snippet will be created on save.</p>
+              )}
+              <div className="flex gap-2 pt-1">
+                <Button className="flex-1" onClick={handleSave} disabled={!isDirty || !canSave}>
+                  {isEditMode ? 'Save' : 'Create'}
+                </Button>
+                <Button variant="ghost" className="flex-1" onClick={handleClose}>Cancel</Button>
+              </div>
+            </div>
+          </section>
+
+          <section className="min-h-0 flex flex-col rounded-xl border border-border bg-panel p-3">
+            <h3 className="flex-shrink-0 text-xs font-semibold text-fg mb-2">Links ({detectedLinks.length})</h3>
+            {detectedLinks.length === 0 ? (
+              <p className="text-[11px] text-muted">No links detected in this snippet body.</p>
+            ) : (
+              <div className="snip-scroll min-h-0 overflow-y-auto space-y-2 pr-1">
+                {detectedLinks.map((url) => (
+                  <div key={url} className="rounded-lg border border-border bg-surface p-2">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <p className="text-[10px] text-muted truncate flex-1" title={url}>{url}</p>
+                      <button
+                        onClick={() => {
+                          if ((window as any).api?.openUrl) (window as any).api.openUrl(url)
+                          else window.open(url, '_blank', 'noopener,noreferrer')
+                        }}
+                        className="text-accent hover:text-accent-h transition-colors"
+                        title="Open link"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 4h6m0 0v6m0-6L10 14" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 14v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2h6" />
+                        </svg>
+                      </button>
+                    </div>
+                    <Input
+                      value={linkTitles[url] ?? ''}
+                      onChange={(e) => setLinkTitles((prev) => ({ ...prev, [url]: e.target.value }))}
+                      placeholder={getDefaultLinkTitle(url)}
                     />
                   </div>
-                  {isEditMode && currentSnip ? (
-                    <div className="text-[10px] text-muted">
-                      <p>Created: {formatDate(currentSnip.createdAt)}</p>
-                      <p>Updated: {formatDate(currentSnip.updatedAt)}</p>
-                    </div>
-                  ) : (
-                    <p className="text-[10px] text-muted">A new snippet will be created on save.</p>
-                  )}
-                  <div className="flex gap-2 pt-1">
-                    <Button className="flex-1" onClick={handleSave} disabled={!isDirty || !canSave}>
-                      {isEditMode ? 'Save' : 'Create'}
-                    </Button>
-                    <Button variant="ghost" className="flex-1" onClick={handleClose}>Cancel</Button>
-                  </div>
-                </div>
-              </section>
-
-              <section className="rounded-xl border border-border bg-panel p-3">
-                <h3 className="text-xs font-semibold text-fg mb-2">Links ({detectedLinks.length})</h3>
-                {detectedLinks.length === 0 ? (
-                  <p className="text-[11px] text-muted">No links detected in this snippet body.</p>
-                ) : (
-                  <div className="space-y-2 max-h-[48vh] overflow-y-auto pr-1">
-                    {detectedLinks.map((url) => (
-                      <div key={url} className="rounded-lg border border-border bg-surface p-2">
-                        <div className="flex items-center gap-2 mb-1.5">
-                          <p className="text-[10px] text-muted truncate flex-1" title={url}>{url}</p>
-                          <button
-                            onClick={() => {
-                              if ((window as any).api?.openUrl) (window as any).api.openUrl(url)
-                              else window.open(url, '_blank', 'noopener,noreferrer')
-                            }}
-                            className="text-accent hover:text-accent-h transition-colors"
-                            title="Open link"
-                          >
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 4h6m0 0v6m0-6L10 14" />
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 14v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2h6" />
-                            </svg>
-                          </button>
-                        </div>
-                        <Input
-                          value={linkTitles[url] ?? ''}
-                          onChange={(e) => setLinkTitles((prev) => ({ ...prev, [url]: e.target.value }))}
-                          placeholder={getDefaultLinkTitle(url)}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </section>
-            </div>
-          </aside>
-        ) : null}
+                ))}
+              </div>
+            )}
+          </section>
+        </aside>
+        </div>
       </div>
     </div>
   )

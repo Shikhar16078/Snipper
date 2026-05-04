@@ -117,7 +117,9 @@ function AppShell() {
           transition: isResizing.current ? 'none' : 'width 0.2s ease',
         }}
       >
-        <Sidebar onCollapse={toggleCollapse} trashOpen={trashOpen} onTrashClick={toggleTrash} />
+        <div style={{ width: sidebarWidth }} className="h-full">
+          <Sidebar onCollapse={toggleCollapse} trashOpen={trashOpen} onTrashClick={toggleTrash} />
+        </div>
       </div>
 
       {/* Resize + toggle handle */}
