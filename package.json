@@ -1,7 +1,7 @@
 {
   "name": "snipper",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "main": "electron-dist/main.js",
   "scripts": {
     "dev": "vite",
@@ -35,7 +35,8 @@
     "appId": "com.snipper.app",
     "productName": "Snipper",
     "directories": {
-      "buildResources": "assets"
+      "buildResources": "assets",
+      "output": "release"
     },
     "files": [
       "dist/**/*",

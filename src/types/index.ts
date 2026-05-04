@@ -15,6 +15,7 @@ export interface Snip {
   folderId: string
   name: string
   body: string
+  linkTitles?: Record<string, string>
   createdAt: number
   updatedAt: number
 }
@@ -25,14 +26,34 @@ export type Theme =
   | 'light' | 'light-pink' | 'light-sage' | 'light-dusk' | 'light-arctic'
   | 'dark' | 'dark-maroon' | 'dark-midnight' | 'dark-ember' | 'dark-nebula'
 
+export interface TrashedSnip {
+  id: string
+  type: 'snip'
+  deletedAt: number
+  snip: Snip
+}
+
+export interface TrashedFolder {
+  id: string
+  type: 'folder'
+  deletedAt: number
+  folders: Folder[]
+  snips: Snip[]
+  dividers: Divider[]
+}
+
+export type TrashedItem = TrashedSnip | TrashedFolder
+
 export interface AppState {
   folders: Folder[]
   snips: Snip[]
   dividers: Divider[]
+  trash: TrashedItem[]
   selectedFolderId: string | null
   viewMode: ViewMode
   theme: Theme
   allSnipsLabel: string
   tipsEnabled: boolean
   isEditMode: boolean
+  deleteConfirmEnabled: boolean
 }

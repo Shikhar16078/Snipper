@@ -1,10 +1,9 @@
 interface EmptyStateProps {
   onAdd: () => void
-  hasFolders: boolean
   isSearching: boolean
 }
 
-export function EmptyState({ onAdd, hasFolders, isSearching }: EmptyStateProps) {
+export function EmptyState({ onAdd, isSearching }: EmptyStateProps) {
   if (isSearching) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-center px-8 select-none">
@@ -27,20 +26,16 @@ export function EmptyState({ onAdd, hasFolders, isSearching }: EmptyStateProps) 
         </svg>
       </div>
       <p className="text-sm font-medium text-fg mb-1">No snips yet</p>
-      <p className="text-xs text-muted mb-5">
-        {hasFolders ? 'Click any card to copy · Add your first snip below' : 'Create a folder first, then add snips'}
-      </p>
-      {hasFolders && (
-        <button
-          onClick={onAdd}
-          className="flex items-center gap-1.5 bg-accent hover:bg-accent-h text-white text-xs font-medium px-3.5 py-2 rounded-lg transition-colors"
-        >
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          Add Snip
-        </button>
-      )}
+      <p className="text-xs text-muted mb-5">Click any card to copy · Add your first snip below</p>
+      <button
+        onClick={onAdd}
+        className="flex items-center gap-1.5 bg-accent hover:bg-accent-h text-white text-xs font-medium px-3.5 py-2 rounded-lg transition-colors"
+      >
+        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+        </svg>
+        Add Snip
+      </button>
     </div>
   )
 }

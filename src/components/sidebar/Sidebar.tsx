@@ -1,15 +1,20 @@
 import { useState, useRef } from 'react'
 import { useApp } from '../../store/AppContext'
+import { useDrag } from '../../context/DragContext'
 import { FolderItem } from './FolderItem'
 import { flattenFolders } from '../../utils/folders'
 import { DropZone, SeparatorRow } from './Separator'
 
 interface SidebarProps {
   onCollapse: () => void
+  trashOpen: boolean
+  onTrashClick: () => void
 }
 
-export function Sidebar({ onCollapse }: SidebarProps) {
+export function Sidebar({ onCollapse, trashOpen, onTrashClick }: SidebarProps) {
   const { state, dispatch } = useApp()
+  const { draggingSnipId } = useDrag()
+  const [trashDragOver, setTrashDragOver] = useState(false)
   const [renamingAll, setRenamingAll] = useState(false)
   const [renameValue, setRenameValue] = useState('')
   const [folderSearch, setFolderSearch] = useState('')
@@ -18,7 +23,6 @@ export function Sidebar({ onCollapse }: SidebarProps) {
 
   const rootFolders = state.folders.filter((f) => f.parentId === null)
   const isAllSelected = state.selectedFolderId === null
-
 
   function startRenameAll(e: React.MouseEvent) {
     e.stopPropagation()
@@ -46,16 +50,16 @@ export function Sidebar({ onCollapse }: SidebarProps) {
       {/* Header */}
       <div
         className={`flex items-center justify-between pr-3 flex-shrink-0 ${
-          isMac ? 'pl-[72px] h-[40px] app-drag' : 'px-3 py-2.5'
+          isMac ? 'pl-[72px] h-[40px] app-drag select-none' : 'px-3 py-2.5'
         }`}
       >
-        <span className="text-[10px] font-semibold tracking-[0.15em] uppercase text-muted select-none pl-1">
+        <span className="text-[10px] font-semibold tracking-[0.15em] uppercase text-muted hover:text-fg transition-colors select-none pl-1">
           Snipper
         </span>
-        <div className="flex items-center gap-1 app-no-drag">
+        <div className="flex items-center gap-1">
           <button
             onClick={() => dispatch({ type: 'TOGGLE_EDIT_MODE' })}
-            className={`p-1.5 rounded-md transition-colors ${
+            className={`p-1.5 rounded-md transition-colors app-no-drag ${
               state.isEditMode
                 ? 'bg-accent text-white hover:bg-accent/90'
                 : 'text-muted hover:text-fg hover:bg-fg/8'
@@ -68,7 +72,7 @@ export function Sidebar({ onCollapse }: SidebarProps) {
           </button>
           <button
             onClick={onCollapse}
-            className="p-1.5 rounded-md text-muted hover:text-fg hover:bg-fg/8 transition-colors"
+            className="p-1.5 rounded-md text-accent bg-accent/10 hover:bg-accent/15 transition-colors app-no-drag"
             title="Collapse sidebar"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -84,11 +88,16 @@ export function Sidebar({ onCollapse }: SidebarProps) {
         {/* All Snips row */}
         <div
           className={`group flex items-center gap-2 px-2 py-1.5 rounded-lg transition-colors ${
-            isAllSelected ? 'bg-accent/10 text-accent' : 'text-fg-2 hover:text-fg hover:bg-fg/6'
+            isAllSelected && !trashOpen ? 'bg-accent/10 text-accent' : 'text-fg-2 hover:text-fg hover:bg-fg/6'
           } ${renamingAll ? '' : 'cursor-pointer'}`}
-          onClick={() => { if (!renamingAll) dispatch({ type: 'SELECT_FOLDER', payload: { id: null } }) }}
+          onClick={() => {
+            if (!renamingAll) {
+              dispatch({ type: 'SELECT_FOLDER', payload: { id: null } })
+              if (trashOpen) onTrashClick()
+            }
+          }}
         >
-          <svg className={`w-3.5 h-3.5 flex-shrink-0 ${isAllSelected ? 'text-accent' : 'text-muted'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className={`w-3.5 h-3.5 flex-shrink-0 ${isAllSelected && !trashOpen ? 'text-accent' : 'text-muted'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
           </svg>
 
@@ -139,7 +148,7 @@ export function Sidebar({ onCollapse }: SidebarProps) {
               value={folderSearch}
               onChange={(e) => setFolderSearch(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Escape') { setFolderSearch(''); searchRef.current?.blur() } }}
-              placeholder="Search or add folder…"
+              placeholder="Type to search or add folder…"
               className="w-full bg-surface border border-border rounded-md px-2 py-1 text-[11px] text-fg placeholder-muted focus:outline-none focus:border-accent transition-colors"
               style={{ paddingRight: folderSearch ? '1.5rem' : undefined }}
             />
@@ -182,6 +191,7 @@ export function Sidebar({ onCollapse }: SidebarProps) {
                   onClick={() => {
                     dispatch({ type: 'SELECT_FOLDER', payload: { id: folder.id } })
                     setFolderSearch('')
+                    if (trashOpen) onTrashClick()
                   }}
                 >
                   <svg className={`w-3.5 h-3.5 flex-shrink-0 ${isSelected ? 'text-accent' : 'text-muted'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -196,7 +206,7 @@ export function Sidebar({ onCollapse }: SidebarProps) {
         ) : (
           <>
             {/* Drop zone + dividers before all folders */}
-            {state.isEditMode && <DropZone afterFolderId={null} depth={0} />}
+            {state.isEditMode && <DropZone afterFolderId={null} parentId={null} depth={0} />}
             {state.dividers.filter((d) => d.afterFolderId === null).map((d) => (
               <SeparatorRow key={d.id} id={d.id} depth={0} />
             ))}
@@ -206,14 +216,50 @@ export function Sidebar({ onCollapse }: SidebarProps) {
               <FolderItem
                 key={folder.id}
                 folder={folder}
-                isSelected={state.selectedFolderId === folder.id}
+                isSelected={state.selectedFolderId === folder.id && !trashOpen}
                 depth={0}
+                onNavigate={() => { if (trashOpen) onTrashClick() }}
               />
             ))}
-
           </>
         )}
       </nav>
+
+      {/* Trash button footer */}
+      <div className="flex-shrink-0 px-2 pb-3">
+        <button
+          onClick={onTrashClick}
+          title="Trash"
+          onDragOver={(e) => {
+            if (!draggingSnipId) return
+            e.preventDefault()
+            e.dataTransfer.dropEffect = 'move'
+            setTrashDragOver(true)
+          }}
+          onDragLeave={() => setTrashDragOver(false)}
+          onDrop={(e) => {
+            e.preventDefault()
+            setTrashDragOver(false)
+            if (draggingSnipId) dispatch({ type: 'DELETE_SNIP', payload: { id: draggingSnipId } })
+          }}
+          className={`relative flex items-center justify-center w-12 h-12 rounded-xl border transition-colors ${
+            trashDragOver
+              ? 'bg-red-500/15 border-red-500/40 text-red-500 ring-1 ring-red-500/40'
+              : trashOpen
+                ? 'bg-accent/20 border-accent/40 text-accent ring-1 ring-accent/20'
+                : 'bg-accent/10 border-fg/20 text-fg hover:bg-accent/15 hover:border-fg/40'
+          }`}
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4h6v3M3 7h18" />
+          </svg>
+          {state.trash.length > 0 && (
+            <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center leading-none">
+              {state.trash.length > 9 ? '9+' : state.trash.length}
+            </span>
+          )}
+        </button>
+      </div>
     </aside>
   )
 }

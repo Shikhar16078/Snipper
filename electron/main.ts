@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain, shell, systemPreferences } from 'electron'
 import path from 'path'
 import fs from 'fs'
 
@@ -49,6 +49,40 @@ function saveData(data: AppState): void {
 
 ipcMain.handle('store:load', () => loadData())
 ipcMain.handle('store:save', (_event, data: AppState) => saveData(data))
+ipcMain.handle('shell:openUrl', (_event, url: string) => shell.openExternal(url))
+ipcMain.handle('titlebar:doubleclick', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender)
+  if (!win) return
+  const action = systemPreferences.getUserDefault('AppleActionOnDoubleClick', 'string')
+  if (action === 'Minimize') {
+    win.isMinimized() ? win.restore() : win.minimize()
+  } else {
+    // 'Maximize', 'Zoom', or unset → zoom/unzoom (macOS default)
+    win.isMaximized() ? win.unmaximize() : win.maximize()
+  }
+})
+
+let dragState: { mouseStartX: number; mouseStartY: number; winStartX: number; winStartY: number } | null = null
+
+ipcMain.on('window:drag-start', (event, { mouseX, mouseY }: { mouseX: number; mouseY: number }) => {
+  const win = BrowserWindow.fromWebContents(event.sender)
+  if (!win) return
+  const [winX, winY] = win.getPosition()
+  dragState = { mouseStartX: mouseX, mouseStartY: mouseY, winStartX: winX, winStartY: winY }
+})
+
+ipcMain.on('window:drag-move', (event, { mouseX, mouseY }: { mouseX: number; mouseY: number }) => {
+  const win = BrowserWindow.fromWebContents(event.sender)
+  if (!win || !dragState) return
+  win.setPosition(
+    dragState.winStartX + (mouseX - dragState.mouseStartX),
+    dragState.winStartY + (mouseY - dragState.mouseStartY),
+  )
+})
+
+ipcMain.on('window:drag-end', () => {
+  dragState = null
+})
 
 function createWindow() {
   const win = new BrowserWindow({

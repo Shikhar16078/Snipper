@@ -280,6 +280,8 @@ html.dark.dark-nebula {
 
 @layer base {
   * { box-sizing: border-box; }
+  button { cursor: pointer; }
+  button:disabled { cursor: not-allowed; }
 
   html, body, #root {
     height: 100%;
@@ -307,4 +309,52 @@ html.dark.dark-nebula {
 }
 .app-no-drag {
   -webkit-app-region: no-drag;
+}
+
+/* Unified scrollbar style for editor panes */
+.snip-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--border)) transparent;
+}
+
+.snip-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+.snip-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.snip-scroll::-webkit-scrollbar-thumb {
+  background: rgb(var(--border));
+  border-radius: 4px;
+}
+
+.snip-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--muted));
+}
+
+/* Modal close — exact reverse of animate-pop */
+@keyframes modal-leave {
+  from { opacity: 1; transform: scale(1); }
+  to   { opacity: 0; transform: scale(0.96); }
+}
+.modal-leave {
+  animation: modal-leave 0.15s ease-in forwards;
+}
+
+/* View transition — enters on every main panel swap */
+@keyframes view-enter {
+  from {
+    opacity: 0;
+    transform: translateY(22px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.view-enter {
+  animation: view-enter 0.32s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }

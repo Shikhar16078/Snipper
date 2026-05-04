@@ -4,8 +4,8 @@ import { AppProvider, useApp } from './store/AppContext'
 import { DragProvider } from './context/DragContext'
 import { Sidebar } from './components/sidebar/Sidebar'
 import { SnipGrid } from './components/snips/SnipGrid'
-import { AddSnipModal } from './components/modals/AddSnipModal'
-import { EditSnipModal } from './components/modals/EditSnipModal'
+import { SnipEditorView } from './components/snips/SnipEditorView'
+import { TrashView } from './components/trash/TrashView'
 
 const SIDEBAR_MIN = 200
 const SIDEBAR_MAX = 420
@@ -13,10 +13,11 @@ const SIDEBAR_DEFAULT = 210
 
 function AppShell() {
   const { state } = useApp()
-  const [addOpen, setAddOpen] = useState(false)
+  const [createOpen, setCreateOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<Snip | null>(null)
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT)
   const [collapsed, setCollapsed] = useState(false)
+  const [trashOpen, setTrashOpen] = useState(false)
   const widthBeforeCollapse = useRef(SIDEBAR_DEFAULT)
   const isResizing = useRef(false)
 
@@ -37,6 +38,61 @@ function AppShell() {
     localStorage.setItem('snipper_theme', state.theme)
   }, [state.theme])
 
+  // macOS main-panel navbar: custom drag + double-click via IPC.
+  // We use 'drag-region' (not -webkit-app-region:drag) so JS receives all pointer events.
+  useEffect(() => {
+    if (window.api?.platform !== 'darwin') return
+
+    let lastDown = 0
+    let dragStartX = 0
+    let dragStartY = 0
+    let dragging = false
+
+    function onMouseMove(e: MouseEvent) {
+      if (!dragging) {
+        const dx = e.screenX - dragStartX
+        const dy = e.screenY - dragStartY
+        if (Math.abs(dx) > 3 || Math.abs(dy) > 3) dragging = true
+      }
+      if (dragging) window.api?.dragMove?.(e.screenX, e.screenY)
+    }
+
+    function onMouseUp() {
+      if (dragging) window.api?.dragEnd?.()
+      dragging = false
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup', onMouseUp)
+    }
+
+    function onMouseDown(e: MouseEvent) {
+      if (e.button !== 0) return
+      let node = e.target as HTMLElement | null
+      while (node) {
+        if (node.classList.contains('app-no-drag')) return
+        if (node.classList.contains('drag-region')) {
+          const now = Date.now()
+          if (now - lastDown < 500) { window.api?.titlebarDoubleClick?.(); lastDown = 0 }
+          else lastDown = now
+          dragStartX = e.screenX
+          dragStartY = e.screenY
+          dragging = false
+          window.api?.dragStart?.(e.screenX, e.screenY)
+          window.addEventListener('mousemove', onMouseMove)
+          window.addEventListener('mouseup', onMouseUp)
+          return
+        }
+        node = node.parentElement
+      }
+    }
+
+    document.addEventListener('mousedown', onMouseDown)
+    return () => {
+      document.removeEventListener('mousedown', onMouseDown)
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup', onMouseUp)
+    }
+  }, [])
+
   // Global shortcut: N = new snip
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -46,7 +102,9 @@ function AppShell() {
         !(e.target instanceof HTMLTextAreaElement)
       ) {
         e.preventDefault()
-        setAddOpen(true)
+        setTrashOpen(false)
+        setEditTarget(null)
+        setCreateOpen(true)
       }
     }
     document.addEventListener('keydown', onKey)
@@ -83,6 +141,27 @@ function AppShell() {
     }
   }
 
+  // Close trash whenever the user navigates to a folder
+  useEffect(() => {
+    setTrashOpen(false)
+  }, [state.selectedFolderId])
+
+  function toggleTrash() {
+    setTrashOpen((v) => !v)
+  }
+
+  function openEditor(snip: Snip) {
+    setCreateOpen(false)
+    setTrashOpen(false)
+    setEditTarget(snip)
+  }
+
+  function openCreateEditor() {
+    setTrashOpen(false)
+    setEditTarget(null)
+    setCreateOpen(true)
+  }
+
   return (
     <div className="flex h-screen overflow-hidden">
       {/* Sidebar */}
@@ -93,7 +172,9 @@ function AppShell() {
           transition: isResizing.current ? 'none' : 'width 0.2s ease',
         }}
       >
-        <Sidebar onCollapse={toggleCollapse} />
+        <div style={{ width: sidebarWidth }} className="h-full">
+          <Sidebar onCollapse={toggleCollapse} trashOpen={trashOpen} onTrashClick={toggleTrash} />
+        </div>
       </div>
 
       {/* Resize + toggle handle */}
@@ -107,11 +188,33 @@ function AppShell() {
 
       {/* Main panel */}
       <div className="flex-1 overflow-hidden relative">
-        <SnipGrid onAdd={() => setAddOpen(true)} onEdit={setEditTarget} collapsed={collapsed} onToggleSidebar={toggleCollapse} />
+        <div
+          key={createOpen ? `create-${state.selectedFolderId ?? 'all'}` : editTarget ? `edit-${editTarget.id}` : trashOpen ? 'trash' : 'grid'}
+          className="h-full view-enter"
+        >
+          {createOpen ? (
+            <SnipEditorView
+              mode="create"
+              initialFolderId={state.selectedFolderId ?? ''}
+              collapsed={collapsed}
+              onToggleSidebar={toggleCollapse}
+              onClose={() => setCreateOpen(false)}
+            />
+          ) : editTarget ? (
+            <SnipEditorView
+              mode="edit"
+              snip={editTarget}
+              collapsed={collapsed}
+              onToggleSidebar={toggleCollapse}
+              onClose={() => setEditTarget(null)}
+            />
+          ) : trashOpen ? (
+            <TrashView collapsed={collapsed} onToggleSidebar={toggleCollapse} />
+          ) : (
+            <SnipGrid onAdd={openCreateEditor} onEdit={openEditor} collapsed={collapsed} onToggleSidebar={toggleCollapse} />
+          )}
+        </div>
       </div>
-
-      <AddSnipModal open={addOpen} onClose={() => setAddOpen(false)} />
-      <EditSnipModal snip={editTarget} onClose={() => setEditTarget(null)} />
     </div>
   )
 }

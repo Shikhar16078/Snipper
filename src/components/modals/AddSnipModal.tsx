@@ -10,10 +10,9 @@ interface AddSnipModalProps {
 export function AddSnipModal({ open, onClose }: AddSnipModalProps) {
   const { state, dispatch } = useApp()
 
-  const defaultFolderId =
-    state.selectedFolderId ?? state.folders[0]?.id ?? ''
+  const defaultFolderId = state.selectedFolderId ?? ''
 
-  function handleSubmit(values: { name: string; body: string; folderId: string }) {
+  function handleSubmit(values: { name: string; body: string; folderId: string; linkTitles?: Record<string, string> }) {
     dispatch({ type: 'ADD_SNIP', payload: values })
     onClose()
   }
@@ -21,8 +20,9 @@ export function AddSnipModal({ open, onClose }: AddSnipModalProps) {
   return (
     <Modal open={open} onClose={onClose} title="New Snip">
       <SnipForm
-        initialValues={{ name: '', body: '', folderId: defaultFolderId }}
+        initialValues={{ name: '', body: '', folderId: defaultFolderId, linkTitles: {} }}
         folders={state.folders}
+        allSnipsLabel={state.allSnipsLabel || 'All Snips'}
         onSubmit={handleSubmit}
         onCancel={onClose}
         submitLabel="Add Snip"

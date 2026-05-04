@@ -1,14 +1,27 @@
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 
 interface ModalProps {
   open: boolean
   onClose: () => void
-  title: string
+  title?: string
   children: ReactNode
 }
 
 export function Modal({ open, onClose, title, children }: ModalProps) {
   const panelRef = useRef<HTMLDivElement>(null)
+  const [mounted, setMounted] = useState(open)
+  const [closing, setClosing] = useState(false)
+
+  useEffect(() => {
+    if (open) {
+      setMounted(true)
+      setClosing(false)
+    } else if (mounted) {
+      setClosing(true)
+      const t = setTimeout(() => { setMounted(false); setClosing(false) }, 150)
+      return () => clearTimeout(t)
+    }
+  }, [open])
 
   useEffect(() => {
     if (!open) return
@@ -21,7 +34,7 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
     if (open) panelRef.current?.querySelector<HTMLElement>('input,textarea,button')?.focus()
   }, [open])
 
-  if (!open) return null
+  if (!mounted) return null
 
   return (
     <div
@@ -30,10 +43,10 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
     >
       <div
         ref={panelRef}
-        className="bg-panel border border-border rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6 animate-pop"
+        className={`bg-panel border border-border rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6 ${closing ? 'modal-leave' : 'animate-pop'}`}
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-sm font-semibold text-fg mb-5">{title}</h2>
+        {title && <h2 className="text-sm font-semibold text-fg mb-5">{title}</h2>}
         {children}
       </div>
     </div>

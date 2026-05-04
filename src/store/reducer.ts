@@ -1,6 +1,14 @@
-import type { AppState, Folder } from '../types'
+import type { AppState, Folder, TrashedFolder, TrashedSnip } from '../types'
 import type { Action } from './actions'
 import { generateId } from '../utils/id'
+
+function sanitizeLinkTitles(linkTitles?: Record<string, string>): Record<string, string> | undefined {
+  if (!linkTitles) return undefined
+  const entries = Object.entries(linkTitles)
+    .map(([url, title]) => [url, title.trim()] as const)
+    .filter(([, title]) => title.length > 0)
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined
+}
 
 function getAllDescendantIds(folderId: string, folders: Folder[]): string[] {
   const children = folders.filter((f) => f.parentId === folderId)
@@ -35,14 +43,66 @@ export function reducer(state: AppState, action: Action): AppState {
 
     case 'DELETE_FOLDER': {
       const toDelete = [action.payload.id, ...getAllDescendantIds(action.payload.id, state.folders)]
+      const trashedEntry: TrashedFolder = {
+        id: action.payload.id,
+        type: 'folder',
+        deletedAt: Date.now(),
+        folders: state.folders.filter((f) => toDelete.includes(f.id)),
+        snips: state.snips.filter((s) => toDelete.includes(s.folderId)),
+        dividers: state.dividers.filter((d) => d.afterFolderId !== null && toDelete.includes(d.afterFolderId)),
+      }
       return {
         ...state,
         folders: state.folders.filter((f) => !toDelete.includes(f.id)),
         snips: state.snips.filter((s) => !toDelete.includes(s.folderId)),
         dividers: state.dividers.filter((d) => d.afterFolderId === null || !toDelete.includes(d.afterFolderId)),
+        trash: [trashedEntry, ...state.trash],
         selectedFolderId: toDelete.includes(state.selectedFolderId ?? '')
           ? null
           : state.selectedFolderId,
+      }
+    }
+
+    case 'REORDER_FOLDER': {
+      const { sourceId, afterId, parentId } = action.payload
+      if (sourceId === afterId) return state
+
+      const sourceIndex = state.folders.findIndex(f => f.id === sourceId)
+      if (sourceIndex === -1) return state
+
+      const descendants = getAllDescendantIds(sourceId, state.folders)
+      if (parentId === sourceId || (parentId && descendants.includes(parentId))) return state
+
+      const folderToMove = { ...state.folders[sourceIndex], parentId }
+      const newFolders = [...state.folders]
+      newFolders.splice(sourceIndex, 1)
+
+      let insertIndex = 0
+      if (afterId !== null) {
+        const afterIndex = newFolders.findIndex(f => f.id === afterId)
+        if (afterIndex !== -1) {
+          insertIndex = afterIndex + 1
+        }
+      } else {
+        if (parentId === null) {
+          const firstRootIndex = newFolders.findIndex(f => f.parentId === null)
+          insertIndex = firstRootIndex !== -1 ? firstRootIndex : 0
+        } else {
+          const firstChildIndex = newFolders.findIndex(f => f.parentId === parentId)
+          if (firstChildIndex !== -1) {
+            insertIndex = firstChildIndex
+          } else {
+            const pIndex = newFolders.findIndex(f => f.id === parentId)
+            insertIndex = pIndex !== -1 ? pIndex + 1 : newFolders.length
+          }
+        }
+      }
+
+      newFolders.splice(insertIndex, 0, folderToMove)
+
+      return {
+        ...state,
+        folders: newFolders,
       }
     }
 
@@ -59,6 +119,7 @@ export function reducer(state: AppState, action: Action): AppState {
             folderId: action.payload.folderId,
             name: action.payload.name,
             body: action.payload.body,
+            linkTitles: sanitizeLinkTitles(action.payload.linkTitles),
             createdAt: Date.now(),
             updatedAt: Date.now(),
           },
@@ -75,17 +136,23 @@ export function reducer(state: AppState, action: Action): AppState {
                 name: action.payload.name,
                 body: action.payload.body,
                 folderId: action.payload.folderId,
+                linkTitles: sanitizeLinkTitles(action.payload.linkTitles),
                 updatedAt: Date.now(),
               }
             : s,
         ),
       }
 
-    case 'DELETE_SNIP':
+    case 'DELETE_SNIP': {
+      const snip = state.snips.find((s) => s.id === action.payload.id)
+      if (!snip) return state
+      const trashedEntry: TrashedSnip = { id: snip.id, type: 'snip', deletedAt: Date.now(), snip }
       return {
         ...state,
         snips: state.snips.filter((s) => s.id !== action.payload.id),
+        trash: [trashedEntry, ...state.trash],
       }
+    }
 
     case 'MOVE_SNIP':
       return {
@@ -109,6 +176,9 @@ export function reducer(state: AppState, action: Action): AppState {
     case 'SET_TIPS_ENABLED':
       return { ...state, tipsEnabled: action.payload }
 
+    case 'SET_DELETE_CONFIRM_ENABLED':
+      return { ...state, deleteConfirmEnabled: action.payload }
+
     case 'TOGGLE_EDIT_MODE':
       return { ...state, isEditMode: !state.isEditMode }
 
@@ -120,6 +190,44 @@ export function reducer(state: AppState, action: Action): AppState {
 
     case 'REMOVE_DIVIDER':
       return { ...state, dividers: state.dividers.filter((d) => d.id !== action.payload.id) }
+
+    case 'RESTORE_TRASH_ITEM': {
+      const item = state.trash.find((t) => t.id === action.payload.id)
+      if (!item) return state
+      const remaining = state.trash.filter((t) => t.id !== action.payload.id)
+      if (item.type === 'snip') {
+        return { ...state, snips: [...state.snips, item.snip], trash: remaining }
+      }
+      return {
+        ...state,
+        folders: [...state.folders, ...item.folders],
+        snips: [...state.snips, ...item.snips],
+        dividers: [...state.dividers, ...item.dividers],
+        trash: remaining,
+      }
+    }
+
+    case 'RESTORE_ALL_TRASH': {
+      let folders = [...state.folders]
+      let snips = [...state.snips]
+      let dividers = [...state.dividers]
+      for (const item of state.trash) {
+        if (item.type === 'snip') {
+          snips = [...snips, item.snip]
+        } else {
+          folders = [...folders, ...item.folders]
+          snips = [...snips, ...item.snips]
+          dividers = [...dividers, ...item.dividers]
+        }
+      }
+      return { ...state, folders, snips, dividers, trash: [] }
+    }
+
+    case 'PERMANENTLY_DELETE_TRASH_ITEM':
+      return { ...state, trash: state.trash.filter((t) => t.id !== action.payload.id) }
+
+    case 'EMPTY_TRASH':
+      return { ...state, trash: [] }
 
     default:
       return state
