@@ -1,15 +1,24 @@
 [
   {
+    "version": "1.1.0",
+    "date": "May 4, 2026",
+    "changes": [
+      "Improved overall stability and fixed minor UI bugs",
+      "Added support for managing recently deleted items through the Trash",
+      "Folder Organization: You can now reorder and nest folders freely using drag and drop",
+      "Cleaner Settings: Themes are now organized in a dedicated submenu",
+      "About Snipper: Added a new section to view app details and patch notes"
+    ]
+  },
+  {
     "version": "1.0.0",
     "date": "May 4, 2026",
     "changes": [
-      "Initial release of Snipper",
-      "Added snippet categorization with nested folders",
-      "Implemented full native drag-and-drop for organizing folders and snips",
-      "Added quick copy functionality",
-      "Added dark and light themes with varying accent colors",
-      "Added trash view with restore capabilities",
-      "Prevented text selection issues on canvas double click"
+      "Initial release of Snipper!",
+      "Create, edit, and organize snippets with nested folders",
+      "Quickly copy snippet content with a single click",
+      "Customize your experience with beautiful light and dark themes",
+      "Safely delete items with the Trash view and restore capabilities"
     ]
   }
 ]

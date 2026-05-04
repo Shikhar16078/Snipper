@@ -246,8 +246,8 @@ export function Sidebar({ onCollapse, trashOpen, onTrashClick }: SidebarProps) {
             trashDragOver
               ? 'bg-red-500/15 border-red-500/40 text-red-500 ring-1 ring-red-500/40'
               : trashOpen
-                ? 'bg-accent/10 border-accent/30 text-accent'
-                : 'border-border text-muted hover:text-fg hover:bg-fg/6 hover:border-fg/20'
+                ? 'bg-accent/20 border-accent/40 text-accent ring-1 ring-accent/20'
+                : 'bg-accent/10 border-fg/20 text-fg hover:bg-accent/15 hover:border-fg/40'
           }`}
         >
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
