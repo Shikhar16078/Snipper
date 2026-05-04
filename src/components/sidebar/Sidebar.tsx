@@ -53,7 +53,7 @@ export function Sidebar({ onCollapse, trashOpen, onTrashClick }: SidebarProps) {
           isMac ? 'pl-[72px] h-[40px] app-drag select-none' : 'px-3 py-2.5'
         }`}
       >
-        <span className="text-[10px] font-semibold tracking-[0.15em] uppercase text-muted select-none pl-1">
+        <span className="text-[10px] font-semibold tracking-[0.15em] uppercase text-muted hover:text-fg transition-colors select-none pl-1">
           Snipper
         </span>
         <div className="flex items-center gap-1">

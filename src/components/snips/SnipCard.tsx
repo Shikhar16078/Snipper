@@ -14,6 +14,8 @@ interface SnipCardProps {
   expanded: boolean
 }
 
+const HOLD_DURATION = 200
+
 export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
   const { state, dispatch } = useApp()
   const { copy, copied } = useCopyToClipboard(1500)
@@ -25,11 +27,18 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
   const [linksOpen, setLinksOpen] = useState(false)
   const [moveSearch, setMoveSearch] = useState('')
   const [isDragging, setIsDragging] = useState(false)
+  const [holdProgress, setHoldProgress] = useState(0)
   const menuRef = useRef<HTMLDivElement>(null)
   const kebabRef = useRef<HTMLButtonElement>(null)
   const linksRef = useRef<HTMLDivElement>(null)
   const moveSearchRef = useRef<HTMLInputElement>(null)
+  const holdActive = useRef(false)
+  const holdRafRef = useRef<number | null>(null)
+  const holdStartTime = useRef(0)
+  const holdSuppressClick = useRef(false)
   const links = extractLinks(snip.body)
+
+  useEffect(() => () => { if (holdRafRef.current) cancelAnimationFrame(holdRafRef.current) }, [])
 
   useEffect(() => {
     if (!menuOpen) return
@@ -68,13 +77,51 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
     else setMoveSearch('')
   }, [menuView])
 
+  function startHold(e: React.MouseEvent) {
+    if (e.button !== 0) return
+    if (kebabRef.current?.contains(e.target as Node)) return
+    if (linksRef.current?.contains(e.target as Node)) return
+
+    holdActive.current = true
+    holdStartTime.current = performance.now()
+
+    function tick() {
+      if (!holdActive.current) return
+      const progress = Math.min((performance.now() - holdStartTime.current) / HOLD_DURATION, 1)
+      setHoldProgress(progress)
+      if (progress < 1) {
+        holdRafRef.current = requestAnimationFrame(tick)
+      } else {
+        holdActive.current = false
+        holdSuppressClick.current = true
+        onEdit(snip)
+      }
+    }
+    holdRafRef.current = requestAnimationFrame(tick)
+
+    function onGlobalUp() {
+      cancelHold()
+      window.removeEventListener('mouseup', onGlobalUp)
+    }
+    window.addEventListener('mouseup', onGlobalUp)
+  }
+
+  function cancelHold() {
+    if (!holdActive.current) return
+    holdActive.current = false
+    if (holdRafRef.current) cancelAnimationFrame(holdRafRef.current)
+    setHoldProgress(0)
+  }
+
   function handleCardClick(e: React.MouseEvent) {
+    if (holdSuppressClick.current) { holdSuppressClick.current = false; return }
     if (kebabRef.current?.contains(e.target as Node)) return
     if (linksRef.current?.contains(e.target as Node)) return
     copy(snip.body)
   }
 
   function handleDragStart(e: React.DragEvent) {
+    cancelHold()
     e.dataTransfer.setData('text/plain', snip.id)
     e.dataTransfer.effectAllowed = 'move'
     setDraggingSnipId(snip.id)
@@ -114,6 +161,7 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
       draggable
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
+      onMouseDown={startHold}
       onClick={handleCardClick}
       onContextMenu={(e) => { e.preventDefault(); openMenu(e.clientX, e.clientY) }}
       className={`snip-card relative group select-none rounded-xl border transition-all duration-500 ease-in-out
@@ -121,10 +169,21 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
         ${isDragging ? 'opacity-40 scale-95 cursor-grabbing' : 'cursor-pointer'}
         ${copied
           ? 'border-green-500/50 bg-green-500/5 ring-1 ring-green-500/20'
-          : 'border-border bg-panel hover:border-fg/25 hover:shadow-md'
+          : holdProgress > 0
+            ? 'border-accent/40 bg-panel'
+            : 'border-border bg-panel hover:border-fg/25 hover:shadow-md'
         }
       `}
+      style={holdProgress > 0 && !copied ? { boxShadow: `0 0 0 1.5px rgb(var(--accent) / ${holdProgress * 0.5})` } : undefined}
     >
+      {/* Hold-to-edit radial fill */}
+      <div className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
+        <div
+          className="absolute inset-0 bg-accent/10"
+          style={{ clipPath: `circle(${holdProgress * 100}% at 50% 50%)` }}
+        />
+      </div>
+
       {/* Copied overlay */}
       <div
         className={`absolute inset-0 flex items-center justify-center rounded-xl z-10 pointer-events-none transition-all duration-500 ease-in-out ${
@@ -140,8 +199,14 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
       </div>
 
       <div className="p-3">
-        {/* Content — blurs out when copied so the overlay reads clearly */}
-        <div className={`transition-[filter,opacity] duration-500 ease-in-out ${copied ? 'blur-[4px] opacity-20' : 'blur-0 opacity-100'}`}>
+        {/* Content — blurs progressively during hold, fully on copy */}
+        <div
+          style={{
+            filter: copied ? 'blur(4px)' : holdProgress > 0 ? `blur(${holdProgress * 3}px)` : undefined,
+            opacity: copied ? 0.2 : holdProgress > 0 ? 1 - holdProgress * 0.65 : undefined,
+            transition: copied ? 'filter 500ms ease-in-out, opacity 500ms ease-in-out' : 'none',
+          }}
+        >
           {/* Header row */}
           <div className="flex items-start justify-between gap-2 mb-2.5">
             <h3 className="text-sm font-semibold leading-snug text-fg">

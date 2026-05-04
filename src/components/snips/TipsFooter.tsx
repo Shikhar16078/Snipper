@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 
 export const TIPS = [
   'Click any card to instantly copy its content to clipboard.',
+  'Click and hold a card to open it in the editor.',
   'Press N anywhere to quickly create a new snip.',
   'Use Cmd+F or Ctrl+F to search snips by name or content.',
   'Use the ⋮ menu on a card to edit, move, or delete it.',
