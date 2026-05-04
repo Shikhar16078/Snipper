@@ -333,3 +333,19 @@ html.dark.dark-nebula {
 .snip-scroll::-webkit-scrollbar-thumb:hover {
   background: rgb(var(--muted));
 }
+
+/* View transition — enters on every main panel swap */
+@keyframes view-enter {
+  from {
+    opacity: 0;
+    transform: translateY(22px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.view-enter {
+  animation: view-enter 0.32s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}

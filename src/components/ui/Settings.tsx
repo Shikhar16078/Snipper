@@ -86,9 +86,9 @@ export function Settings() {
       <button
         onClick={() => setOpen((o) => !o)}
         title="Settings"
-        style={{ color: open ? undefined : iconColor }}
+        style={{ color: open ? iconColor : undefined }}
         className={`flex items-center justify-center w-9 h-9 rounded-lg transition-colors ${
-          open ? 'text-fg bg-fg/8' : 'hover:bg-fg/8'
+          open ? 'bg-accent/10 hover:bg-accent/15' : 'text-muted hover:text-fg hover:bg-fg/8'
         }`}
       >
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -75,30 +75,17 @@ export function SnipEditorView({
   const isEditMode = mode === 'edit' && !!snip
   const currentSnip = snip
 
-  const [name, setName] = useState('')
-  const [body, setBody] = useState('')
-  const [folderId, setFolderId] = useState(initialFolderId)
-  const [linkTitles, setLinkTitles] = useState<Record<string, string>>({})
+  const [name, setName] = useState(() => isEditMode && snip ? snip.name : '')
+  const [body, setBody] = useState(() => isEditMode && snip ? snip.body : '')
+  const [folderId, setFolderId] = useState(() => isEditMode && snip ? snip.folderId : initialFolderId)
+  const [linkTitles, setLinkTitles] = useState<Record<string, string>>(() => isEditMode && snip ? (snip.linkTitles ?? {}) : {})
+  const [showDiscardDialog, setShowDiscardDialog] = useState(false)
   const [rightPanelOpen, setRightPanelOpen] = useState(true)
   const [rightPanelWidth, setRightPanelWidth] = useState(() =>
     clampRightPanelWidth(RIGHT_PANEL_DEFAULT, window.innerWidth),
   )
   const [isRightResizingUI, setIsRightResizingUI] = useState(false)
   const isRightResizing = useRef(false)
-
-  useEffect(() => {
-    if (isEditMode && currentSnip) {
-      setName(currentSnip.name)
-      setBody(currentSnip.body)
-      setFolderId(currentSnip.folderId)
-      setLinkTitles(currentSnip.linkTitles ?? {})
-      return
-    }
-    setName('')
-    setBody('')
-    setFolderId(initialFolderId)
-    setLinkTitles({})
-  }, [isEditMode, currentSnip, initialFolderId])
 
   const isMac = window.api?.platform === 'darwin'
   const detectedLinks = useMemo(() => extractLinks(body), [body])
@@ -188,7 +175,7 @@ export function SnipEditorView({
   const canSave = currentCanonical.name.length > 0 && currentCanonical.body.trim().length > 0
 
   function handleClose() {
-    if (isDirty && !window.confirm('Discard unsaved changes?')) return
+    if (isDirty) { setShowDiscardDialog(true); return }
     onClose()
   }
 
@@ -227,17 +214,40 @@ export function SnipEditorView({
       }
       if (e.key === 'Escape') {
         e.preventDefault()
+        if (showDiscardDialog) { setShowDiscardDialog(false); return }
         handleClose()
       }
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [canSave, isDirty, dispatch, isEditMode, currentSnip, currentCanonical, onClose])
+  }, [canSave, isDirty, showDiscardDialog, dispatch, isEditMode, currentSnip, currentCanonical, onClose])
 
   const headerTitle = isEditMode && currentSnip ? currentSnip.name : 'New Snip'
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-surface">
+      {showDiscardDialog && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-[2px]">
+          <div className="bg-panel border border-border rounded-2xl shadow-2xl p-5 w-72 animate-pop">
+            <h3 className="text-sm font-semibold text-fg mb-1">Discard changes?</h3>
+            <p className="text-xs text-muted mb-5">Your unsaved changes will be lost.</p>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setShowDiscardDialog(false)}
+                className="px-3 py-1.5 text-xs font-medium text-fg-2 hover:text-fg rounded-lg border border-border hover:border-fg/30 hover:bg-fg/8 transition-colors"
+              >
+                Keep editing
+              </button>
+              <button
+                onClick={() => { setShowDiscardDialog(false); onClose() }}
+                className="px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors bg-red-500/10 text-red-500 border-red-500/25 hover:bg-red-500/20 hover:border-red-500/50"
+              >
+                Discard
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div
         className={`flex items-center gap-2 pr-4 border-b border-border flex-shrink-0 transition-[padding] duration-200 ${
           isMac ? `app-drag h-[40px] ${collapsed ? 'pl-[80px]' : 'pl-4'}` : 'py-2.5 pl-4'

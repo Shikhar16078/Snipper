@@ -133,29 +133,32 @@ function AppShell() {
 
       {/* Main panel */}
       <div className="flex-1 overflow-hidden relative">
-        {createOpen ? (
-          <SnipEditorView
-            key={`create-${state.selectedFolderId ?? 'all'}`}
-            mode="create"
-            initialFolderId={state.selectedFolderId ?? ''}
-            collapsed={collapsed}
-            onToggleSidebar={toggleCollapse}
-            onClose={() => setCreateOpen(false)}
-          />
-        ) : editTarget ? (
-          <SnipEditorView
-            key={`edit-${editTarget.id}`}
-            mode="edit"
-            snip={editTarget}
-            collapsed={collapsed}
-            onToggleSidebar={toggleCollapse}
-            onClose={() => setEditTarget(null)}
-          />
-        ) : trashOpen ? (
-          <TrashView collapsed={collapsed} onToggleSidebar={toggleCollapse} />
-        ) : (
-          <SnipGrid onAdd={openCreateEditor} onEdit={openEditor} collapsed={collapsed} onToggleSidebar={toggleCollapse} />
-        )}
+        <div
+          key={createOpen ? `create-${state.selectedFolderId ?? 'all'}` : editTarget ? `edit-${editTarget.id}` : trashOpen ? 'trash' : 'grid'}
+          className="h-full view-enter"
+        >
+          {createOpen ? (
+            <SnipEditorView
+              mode="create"
+              initialFolderId={state.selectedFolderId ?? ''}
+              collapsed={collapsed}
+              onToggleSidebar={toggleCollapse}
+              onClose={() => setCreateOpen(false)}
+            />
+          ) : editTarget ? (
+            <SnipEditorView
+              mode="edit"
+              snip={editTarget}
+              collapsed={collapsed}
+              onToggleSidebar={toggleCollapse}
+              onClose={() => setEditTarget(null)}
+            />
+          ) : trashOpen ? (
+            <TrashView collapsed={collapsed} onToggleSidebar={toggleCollapse} />
+          ) : (
+            <SnipGrid onAdd={openCreateEditor} onEdit={openEditor} collapsed={collapsed} onToggleSidebar={toggleCollapse} />
+          )}
+        </div>
       </div>
     </div>
   )
