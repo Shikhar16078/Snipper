@@ -206,7 +206,7 @@ export function Sidebar({ onCollapse, trashOpen, onTrashClick }: SidebarProps) {
         ) : (
           <>
             {/* Drop zone + dividers before all folders */}
-            {state.isEditMode && <DropZone afterFolderId={null} depth={0} />}
+            {state.isEditMode && <DropZone afterFolderId={null} parentId={null} depth={0} />}
             {state.dividers.filter((d) => d.afterFolderId === null).map((d) => (
               <SeparatorRow key={d.id} id={d.id} depth={0} />
             ))}

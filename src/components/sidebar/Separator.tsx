@@ -4,14 +4,15 @@ import { useDrag } from '../../context/DragContext'
 
 interface DropZoneProps {
   afterFolderId: string | null
+  parentId: string | null
   depth: number
 }
 
-export function DropZone({ afterFolderId, depth }: DropZoneProps) {
+export function DropZone({ afterFolderId, parentId, depth }: DropZoneProps) {
   const { dispatch } = useApp()
-  const { draggingDividerId, setDraggingDividerId } = useDrag()
+  const { draggingDividerId, setDraggingDividerId, draggingFolderId, setDraggingFolderId } = useDrag()
   const [over, setOver] = useState(false)
-  const active = !!draggingDividerId
+  const active = !!draggingDividerId || !!draggingFolderId
 
   function handleDrop(e: React.DragEvent) {
     e.preventDefault()
@@ -19,6 +20,9 @@ export function DropZone({ afterFolderId, depth }: DropZoneProps) {
     if (draggingDividerId) {
       dispatch({ type: 'MOVE_DIVIDER', payload: { id: draggingDividerId, afterFolderId } })
       setDraggingDividerId(null)
+    } else if (draggingFolderId) {
+      dispatch({ type: 'REORDER_FOLDER', payload: { sourceId: draggingFolderId, afterId: afterFolderId, parentId } })
+      setDraggingFolderId(null)
     }
   }
 
@@ -26,15 +30,25 @@ export function DropZone({ afterFolderId, depth }: DropZoneProps) {
 
   return (
     <div
-      className={`transition-all duration-100 pr-1 ${active ? (over ? 'py-0.5' : 'py-1.5') : 'h-0 overflow-hidden'}`}
-      onDragOver={(e) => { if (!active) return; e.preventDefault(); setOver(true) }}
+      className={`relative transition-all duration-100 pr-1 ${active ? (over ? 'py-1' : 'h-0 py-0') : 'h-0 py-0 overflow-hidden'}`}
+      onDragOver={(e) => {
+        if (!active) return
+        e.preventDefault()
+        e.stopPropagation()
+        setOver(true)
+      }}
       onDragLeave={() => setOver(false)}
       onDrop={handleDrop}
       style={{ paddingLeft: `${4 + indent}px` }}
     >
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-1.5 relative w-full">
         <div className="w-4 flex-shrink-0" />
-        <div className={`flex-1 pointer-events-none h-px rounded-full transition-colors ${over ? 'bg-accent' : 'bg-border/50'}`} />
+        <div className={`flex-1 pointer-events-none h-[2px] rounded-full transition-colors ${over ? 'bg-accent' : 'bg-transparent'}`} />
+        
+        {/* Invisible hit area expansion */}
+        {active && (
+          <div className="absolute left-0 right-0 -top-[10px] -bottom-[10px] z-10" />
+        )}
       </div>
     </div>
   )

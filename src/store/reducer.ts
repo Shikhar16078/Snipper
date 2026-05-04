@@ -55,6 +55,49 @@ export function reducer(state: AppState, action: Action): AppState {
       }
     }
 
+    case 'REORDER_FOLDER': {
+      const { sourceId, afterId, parentId } = action.payload
+      if (sourceId === afterId) return state
+
+      const sourceIndex = state.folders.findIndex(f => f.id === sourceId)
+      if (sourceIndex === -1) return state
+
+      const descendants = getAllDescendantIds(sourceId, state.folders)
+      if (parentId === sourceId || (parentId && descendants.includes(parentId))) return state
+
+      const folderToMove = { ...state.folders[sourceIndex], parentId }
+      const newFolders = [...state.folders]
+      newFolders.splice(sourceIndex, 1)
+
+      let insertIndex = 0
+      if (afterId !== null) {
+        const afterIndex = newFolders.findIndex(f => f.id === afterId)
+        if (afterIndex !== -1) {
+          insertIndex = afterIndex + 1
+        }
+      } else {
+        if (parentId === null) {
+          const firstRootIndex = newFolders.findIndex(f => f.parentId === null)
+          insertIndex = firstRootIndex !== -1 ? firstRootIndex : 0
+        } else {
+          const firstChildIndex = newFolders.findIndex(f => f.parentId === parentId)
+          if (firstChildIndex !== -1) {
+            insertIndex = firstChildIndex
+          } else {
+            const pIndex = newFolders.findIndex(f => f.id === parentId)
+            insertIndex = pIndex !== -1 ? pIndex + 1 : newFolders.length
+          }
+        }
+      }
+
+      newFolders.splice(insertIndex, 0, folderToMove)
+
+      return {
+        ...state,
+        folders: newFolders,
+      }
+    }
+
     case 'SELECT_FOLDER':
       return { ...state, selectedFolderId: action.payload.id }
 

@@ -15,7 +15,7 @@ interface FolderItemProps {
 
 export function FolderItem({ folder, isSelected, depth, onNavigate }: FolderItemProps) {
   const { state, dispatch } = useApp()
-  const { draggingSnipId } = useDrag()
+  const { draggingSnipId, draggingFolderId, setDraggingFolderId } = useDrag()
   const [isExpanded, setIsExpanded] = useState(true)
   const [isRenaming, setIsRenaming] = useState(false)
   const [renameValue, setRenameValue] = useState(folder.name)
@@ -51,9 +51,29 @@ export function FolderItem({ folder, isSelected, depth, onNavigate }: FolderItem
     setChildName('')
   }
 
+  function handleDragStart(e: React.DragEvent) {
+    if (!state.isEditMode) return
+    e.stopPropagation()
+    e.dataTransfer.effectAllowed = 'move'
+    setDraggingFolderId(folder.id)
+  }
+
+  function handleDragEnd() {
+    setDraggingFolderId(null)
+  }
+
   function handleDragOver(e: React.DragEvent) {
-    if (!draggingSnipId) return
+    if (!draggingSnipId && !draggingFolderId) return
+    if (draggingFolderId === folder.id) return // Can't drop on itself
+    
+    // Check if we are trying to drop on a descendant
+    if (draggingFolderId) {
+      const descendants = getAllDescendantIds(draggingFolderId, state.folders)
+      if (descendants.includes(folder.id)) return
+    }
+
     e.preventDefault()
+    e.stopPropagation()
     e.dataTransfer.dropEffect = 'move'
     setIsDragOver(true)
   }
@@ -64,9 +84,22 @@ export function FolderItem({ folder, isSelected, depth, onNavigate }: FolderItem
 
   function handleDrop(e: React.DragEvent) {
     e.preventDefault()
+    e.stopPropagation()
     setIsDragOver(false)
-    const snipId = e.dataTransfer.getData('text/plain')
-    if (snipId) dispatch({ type: 'MOVE_SNIP', payload: { id: snipId, folderId: folder.id } })
+    
+    if (draggingSnipId) {
+      const snipId = e.dataTransfer.getData('text/plain')
+      if (snipId) dispatch({ type: 'MOVE_SNIP', payload: { id: snipId, folderId: folder.id } })
+    } else if (draggingFolderId) {
+      if (draggingFolderId !== folder.id) {
+        const lastChild = children.length > 0 ? children[children.length - 1] : null
+        dispatch({
+          type: 'REORDER_FOLDER',
+          payload: { sourceId: draggingFolderId, afterId: lastChild ? lastChild.id : null, parentId: folder.id }
+        })
+      }
+      setDraggingFolderId(null)
+    }
   }
 
   function handleDelete(e: React.MouseEvent) {
@@ -84,8 +117,13 @@ export function FolderItem({ folder, isSelected, depth, onNavigate }: FolderItem
     <div>
       {/* Row */}
       <div
+        draggable={state.isEditMode}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
         style={{ paddingLeft: '8px', marginLeft: indent > 0 ? `${indent}px` : undefined }}
         className={`group flex items-center gap-1.5 pr-2 py-1.5 rounded-lg cursor-pointer transition-colors ${
+          state.isEditMode ? 'active:cursor-grabbing' : ''
+        } ${
           isDragOver
             ? 'bg-accent/15 text-accent ring-1 ring-accent/50'
             : isSelected
@@ -238,6 +276,9 @@ export function FolderItem({ folder, isSelected, depth, onNavigate }: FolderItem
       )}
 
       {/* Children */}
+      {isExpanded && state.isEditMode && children.length > 0 && (
+        <DropZone afterFolderId={null} parentId={folder.id} depth={depth + 1} />
+      )}
       {isExpanded && children.map((child) => (
         <FolderItem
           key={child.id}
@@ -249,7 +290,7 @@ export function FolderItem({ folder, isSelected, depth, onNavigate }: FolderItem
       ))}
 
       {/* Dividers at the end of the folder group */}
-      {state.isEditMode && <DropZone afterFolderId={folder.id} depth={depth} />}
+      {state.isEditMode && <DropZone afterFolderId={folder.id} parentId={folder.parentId} depth={depth} />}
       {state.dividers.filter((d) => d.afterFolderId === folder.id).map((d) => (
         <SeparatorRow key={d.id} id={d.id} depth={depth} />
       ))}

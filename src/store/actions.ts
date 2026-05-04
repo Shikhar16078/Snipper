@@ -4,6 +4,7 @@ export type Action =
   | { type: 'ADD_FOLDER'; payload: { name: string; parentId?: string | null } }
   | { type: 'RENAME_FOLDER'; payload: { id: string; name: string } }
   | { type: 'DELETE_FOLDER'; payload: { id: string } }
+  | { type: 'REORDER_FOLDER'; payload: { sourceId: string; afterId: string | null; parentId: string | null } }
   | { type: 'SELECT_FOLDER'; payload: { id: string | null } }
   | { type: 'ADD_SNIP'; payload: { folderId: string; name: string; body: string } }
   | { type: 'EDIT_SNIP'; payload: { id: string; name: string; body: string; folderId: string } }
