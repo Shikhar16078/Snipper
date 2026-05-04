@@ -250,7 +250,7 @@ export function SnipEditorView({
       )}
       <div
         className={`flex items-center gap-2 pr-4 border-b border-border flex-shrink-0 transition-[padding] duration-200 ${
-          isMac ? `app-drag h-[40px] ${collapsed ? 'pl-[80px]' : 'pl-4'}` : 'py-2.5 pl-4'
+          isMac ? `app-drag select-none h-[40px] ${collapsed ? 'pl-[80px]' : 'pl-4'}` : 'py-2.5 pl-4'
         }`}
       >
         {collapsed && (

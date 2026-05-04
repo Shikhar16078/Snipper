@@ -50,7 +50,7 @@ export function Sidebar({ onCollapse, trashOpen, onTrashClick }: SidebarProps) {
       {/* Header */}
       <div
         className={`flex items-center justify-between pr-3 flex-shrink-0 ${
-          isMac ? 'pl-[72px] h-[40px] app-drag' : 'px-3 py-2.5'
+          isMac ? 'pl-[72px] h-[40px] app-drag select-none' : 'px-3 py-2.5'
         }`}
       >
         <span className="text-[10px] font-semibold tracking-[0.15em] uppercase text-muted select-none pl-1">
@@ -72,7 +72,7 @@ export function Sidebar({ onCollapse, trashOpen, onTrashClick }: SidebarProps) {
           </button>
           <button
             onClick={onCollapse}
-            className="p-1.5 rounded-md text-muted hover:text-fg hover:bg-fg/8 transition-colors"
+            className="p-1.5 rounded-md text-accent bg-accent/10 hover:bg-accent/15 transition-colors"
             title="Collapse sidebar"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

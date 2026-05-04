@@ -5,8 +5,10 @@
     "changes": [
       "Improved overall stability and fixed minor UI bugs",
       "Added support for managing recently deleted items through the Trash",
-      "Folder Organization: You can now reorder and nest folders freely using drag and drop",
+      "Folder Organization: You can now freely reorder and nest folders using drag and drop",
       "Cleaner Settings: Themes are now organized in a dedicated submenu",
+      "Introduced a new Snip Editor mode, providing a focused interface for creating and editing snippets without distractions",
+      "Added a 'View Tips' option in Settings, offering helpful guidance for new users getting started",
       "About Snipper: Added a new section to view app details and patch notes"
     ]
   },
