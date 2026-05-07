@@ -35,6 +35,11 @@ interface TrashViewProps {
   onOpenHelp: () => void
 }
 
+const recoverButtonClasses =
+  'text-white border-emerald-600/35 bg-emerald-500 hover:bg-emerald-600 hover:border-emerald-600/50 dark:text-emerald-400 dark:border-emerald-400/35 dark:bg-transparent dark:hover:bg-emerald-400/10 dark:hover:border-emerald-400/60'
+const deleteButtonClasses =
+  'text-white border-red-600/35 bg-red-500 hover:bg-red-600 hover:border-red-600/50 dark:text-red-500 dark:border-red-500/35 dark:bg-transparent dark:hover:bg-red-500/10 dark:hover:border-red-500/60'
+
 export function TrashView({ collapsed, onToggleSidebar, onOpenHelp }: TrashViewProps) {
   const { state, dispatch } = useApp()
   const [expandAll, setExpandAll] = useState(false)
@@ -176,7 +181,7 @@ export function TrashView({ collapsed, onToggleSidebar, onOpenHelp }: TrashViewP
         {state.trash.length > 0 && (
           <button
             onClick={() => setConfirmRecoverAll(true)}
-            className="flex items-center gap-1.5 bg-accent hover:bg-accent/90 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors app-no-drag"
+            className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors app-no-drag ${recoverButtonClasses}`}
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
@@ -189,7 +194,7 @@ export function TrashView({ collapsed, onToggleSidebar, onOpenHelp }: TrashViewP
         {state.trash.length > 0 && (
           <button
             onClick={() => setConfirmEmptyTrash(true)}
-            className="flex items-center gap-1.5 bg-red-500 hover:bg-red-600 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors app-no-drag"
+            className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors app-no-drag ${deleteButtonClasses}`}
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4h6v3M3 7h18" />
@@ -239,7 +244,7 @@ export function TrashView({ collapsed, onToggleSidebar, onOpenHelp }: TrashViewP
           <Button variant="ghost" onClick={() => setConfirmRecoverAll(false)}>Cancel</Button>
           <button
             onClick={() => { dispatch({ type: 'RESTORE_ALL_TRASH' }); setConfirmRecoverAll(false) }}
-            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-accent hover:bg-accent/90 text-white transition-colors"
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${recoverButtonClasses}`}
           >
             Recover All
           </button>
@@ -255,7 +260,7 @@ export function TrashView({ collapsed, onToggleSidebar, onOpenHelp }: TrashViewP
           <Button variant="ghost" onClick={() => setConfirmEmptyTrash(false)}>Cancel</Button>
           <button
             onClick={() => { dispatch({ type: 'EMPTY_TRASH' }); setConfirmEmptyTrash(false) }}
-            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500 hover:bg-red-600 text-white transition-colors"
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${deleteButtonClasses}`}
           >
             Empty Trash
           </button>
@@ -322,7 +327,7 @@ function TrashedSnipCard({ item, expanded }: { item: TrashedSnip; expanded: bool
             {/* Header */}
             <div className="flex items-start justify-between gap-2 mb-2.5">
               <h3 className="text-sm font-semibold leading-snug text-fg truncate">{item.snip.name}</h3>
-              <span className="flex-shrink-0 text-[10px] font-medium text-fg/30 border border-fg/30 bg-fg/8 rounded-md px-1.5 py-0.5 -mt-0.5">{timeAgo(item.deletedAt)}</span>
+              <span className="flex-shrink-0 text-[10px] font-medium text-fg/60 border border-fg/40 bg-fg/12 dark:text-fg/30 dark:border-fg/30 dark:bg-fg/8 rounded-md px-1.5 py-0.5 -mt-0.5">{timeAgo(item.deletedAt)}</span>
             </div>
 
             {/* Body */}
@@ -400,7 +405,7 @@ function TrashedSnipCard({ item, expanded }: { item: TrashedSnip; expanded: bool
               <div className="flex-1" />
               <button
                 onClick={(e) => { e.stopPropagation(); setConfirmRestore(true) }}
-                className="flex items-center gap-1 text-[11px] font-medium text-accent border border-accent/30 hover:border-accent/60 hover:bg-accent/8 px-2 py-1 rounded-lg transition-colors"
+                className={`flex items-center gap-1 text-[11px] font-medium border px-2 py-1 rounded-lg transition-colors ${recoverButtonClasses}`}
               >
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
@@ -409,7 +414,7 @@ function TrashedSnipCard({ item, expanded }: { item: TrashedSnip; expanded: bool
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); setConfirmDelete(true) }}
-                className="flex items-center gap-1 text-[11px] font-medium text-red-500 border border-red-500/30 hover:border-red-500/60 hover:bg-red-500/8 px-2 py-1 rounded-lg transition-colors"
+                className={`flex items-center gap-1 text-[11px] font-medium border px-2 py-1 rounded-lg transition-colors ${deleteButtonClasses}`}
               >
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7M3 7h18M9 7V4h6v3" />
@@ -431,7 +436,7 @@ function TrashedSnipCard({ item, expanded }: { item: TrashedSnip; expanded: bool
           <Button variant="ghost" onClick={() => setConfirmRestore(false)}>Cancel</Button>
           <button
             onClick={() => { dispatch({ type: 'RESTORE_TRASH_ITEM', payload: { id: item.id } }); setConfirmRestore(false) }}
-            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-accent hover:bg-accent/90 text-white transition-colors"
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${recoverButtonClasses}`}
           >
             Restore
           </button>
@@ -447,7 +452,7 @@ function TrashedSnipCard({ item, expanded }: { item: TrashedSnip; expanded: bool
           <Button variant="ghost" onClick={() => setConfirmDelete(false)}>Cancel</Button>
           <button
             onClick={() => { dispatch({ type: 'PERMANENTLY_DELETE_TRASH_ITEM', payload: { id: item.id } }); setConfirmDelete(false) }}
-            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500 hover:bg-red-600 text-white transition-colors"
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${deleteButtonClasses}`}
           >
             Delete Forever
           </button>
@@ -517,7 +522,7 @@ function TrashedFolderCard({ item }: { item: TrashedFolder }) {
             <div className="flex-1" />
             <button
               onClick={() => setConfirmRestore(true)}
-              className="flex items-center gap-1 text-[11px] font-medium text-accent border border-accent/30 hover:border-accent/60 hover:bg-accent/8 px-2 py-1 rounded-lg transition-colors"
+              className={`flex items-center gap-1 text-[11px] font-medium border px-2 py-1 rounded-lg transition-colors ${recoverButtonClasses}`}
             >
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
@@ -526,7 +531,7 @@ function TrashedFolderCard({ item }: { item: TrashedFolder }) {
             </button>
             <button
               onClick={() => setConfirmDelete(true)}
-              className="flex items-center gap-1 text-[11px] font-medium text-red-500 border border-red-500/30 hover:border-red-500/60 hover:bg-red-500/8 px-2 py-1 rounded-lg transition-colors"
+              className={`flex items-center gap-1 text-[11px] font-medium border px-2 py-1 rounded-lg transition-colors ${deleteButtonClasses}`}
             >
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7M3 7h18M9 7V4h6v3" />
@@ -550,7 +555,7 @@ function TrashedFolderCard({ item }: { item: TrashedFolder }) {
           <Button variant="ghost" onClick={() => setConfirmRestore(false)}>Cancel</Button>
           <button
             onClick={() => { dispatch({ type: 'RESTORE_TRASH_ITEM', payload: { id: item.id } }); setConfirmRestore(false) }}
-            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-accent hover:bg-accent/90 text-white transition-colors"
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${recoverButtonClasses}`}
           >
             Restore
           </button>
@@ -566,7 +571,7 @@ function TrashedFolderCard({ item }: { item: TrashedFolder }) {
           <Button variant="ghost" onClick={() => setConfirmDelete(false)}>Cancel</Button>
           <button
             onClick={() => { dispatch({ type: 'PERMANENTLY_DELETE_TRASH_ITEM', payload: { id: item.id } }); setConfirmDelete(false) }}
-            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500 hover:bg-red-600 text-white transition-colors"
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${deleteButtonClasses}`}
           >
             Delete Forever
           </button>
