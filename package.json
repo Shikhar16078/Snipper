@@ -1,7 +1,7 @@
 {
   "name": "snipper",
   "private": true,
-  "version": "1.1.0",
+  "version": "1.2.0",
   "main": "electron-dist/main.js",
   "scripts": {
     "dev": "vite",
@@ -10,10 +10,11 @@
     "build:electron": "tsc -p tsconfig.electron.json",
     "build:all": "npm run build && npm run build:electron",
     "preview": "vite preview",
-    "package:mac": "npm run build:all && electron-builder --mac",
+    "package:mac": "npm run build:all && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac",
     "package:win": "npm run build:all && electron-builder --win"
   },
   "dependencies": {
+    "electron-updater": "^6.8.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
@@ -48,6 +49,7 @@
         "dmg",
         "zip"
       ],
+      "identity": null,
       "hardenedRuntime": false,
       "gatekeeperAssess": false
     },

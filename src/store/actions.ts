@@ -17,6 +17,7 @@ export type Action =
   | { type: 'SET_DELETE_CONFIRM_ENABLED'; payload: boolean }
   | { type: 'SET_HOLD_ACTION'; payload: HoldAction }
   | { type: 'SET_TRASH_AUTO_PURGE'; payload: TrashAutoPurge }
+  | { type: 'SET_AUTO_UPDATE_ENABLED'; payload: boolean }
   | { type: 'PURGE_EXPIRED_TRASH' }
   | { type: 'TOGGLE_EDIT_MODE' }
   | { type: 'ADD_DIVIDER'; payload: { afterFolderId: string | null } }

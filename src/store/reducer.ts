@@ -186,6 +186,9 @@ export function reducer(state: AppState, action: Action): AppState {
     case 'SET_TRASH_AUTO_PURGE':
       return { ...state, trashAutoPurge: action.payload }
 
+    case 'SET_AUTO_UPDATE_ENABLED':
+      return { ...state, autoUpdateEnabled: action.payload }
+
     case 'PURGE_EXPIRED_TRASH': {
       if (state.trashAutoPurge === null) return state
       const cutoff = Date.now() - state.trashAutoPurge

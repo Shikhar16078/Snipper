@@ -10,7 +10,7 @@ export const APP_VERSION = patchNotes[0].version
 
 export function PatchNotesModal({ open, onClose }: PatchNotesModalProps) {
   return (
-    <Modal open={open} onClose={onClose} title="Patch Notes">
+    <Modal open={open} onClose={onClose} title="What's New?">
       <div className="max-h-[60vh] overflow-y-auto pr-2 -mr-2 mb-4 space-y-6">
         <div key={patchNotes[0].version}>
           <div className="flex items-center gap-2 mb-2">

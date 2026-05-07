@@ -20,9 +20,18 @@ interface AppContextValue {
 const AppContext = createContext<AppContextValue | null>(null)
 
 declare global {
+  type UpdaterEventPayload =
+    | { type: 'checking' }
+    | { type: 'available'; version: string }
+    | { type: 'not-available' }
+    | { type: 'download-progress'; percent: number }
+    | { type: 'downloaded'; version: string }
+    | { type: 'error'; message: string }
+
   interface Window {
     api?: {
       platform: string
+      isPackaged?: boolean
       loadData: () => Promise<AppState>
       saveData: (data: AppState) => Promise<void>
       openUrl?: (url: string) => Promise<void>
@@ -30,6 +39,12 @@ declare global {
       dragStart?: (mouseX: number, mouseY: number) => void
       dragMove?: (mouseX: number, mouseY: number) => void
       dragEnd?: () => void
+      updates?: {
+        check: () => Promise<{ ok: boolean }>
+        download: () => Promise<{ ok: boolean }>
+        install: () => Promise<{ ok: boolean }>
+        onEvent: (callback: (payload: UpdaterEventPayload) => void) => () => void
+      }
     }
   }
 }

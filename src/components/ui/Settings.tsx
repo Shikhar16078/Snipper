@@ -79,6 +79,9 @@ export function Settings({ onOpenHelp, isOnHelp }: { onOpenHelp?: () => void; is
   const [warnFlash, setWarnFlash] = useState(false)
   const warnTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const ref = useRef<HTMLDivElement>(null)
+  const [updateStatus, setUpdateStatus] = useState('')
+  const [updateError, setUpdateError] = useState('')
+  const [checkingUpdates, setCheckingUpdates] = useState(false)
 
   useEffect(() => {
     if (!open) {
@@ -92,8 +95,48 @@ export function Settings({ onOpenHelp, isOnHelp }: { onOpenHelp?: () => void; is
     return () => document.removeEventListener('mousedown', onClickOutside)
   }, [open])
 
+  useEffect(() => {
+    const updates = window.api?.updates
+    if (!updates) return
+    return updates.onEvent((payload) => {
+      if (payload.type === 'checking') {
+        setCheckingUpdates(true)
+        setUpdateError('')
+        setUpdateStatus('Checking…')
+      } else if (payload.type === 'available') {
+        setCheckingUpdates(false)
+        setUpdateStatus(`Update available: v${payload.version}`)
+      } else if (payload.type === 'not-available') {
+        setCheckingUpdates(false)
+        setUpdateStatus('You are up to date')
+      } else if (payload.type === 'download-progress') {
+        setCheckingUpdates(false)
+        setUpdateStatus(`Downloading… ${Math.round(payload.percent)}%`)
+      } else if (payload.type === 'downloaded') {
+        setCheckingUpdates(false)
+        setUpdateStatus(`Ready to install: v${payload.version}`)
+      } else if (payload.type === 'error') {
+        setCheckingUpdates(false)
+        setUpdateStatus('')
+        setUpdateError(payload.message)
+      }
+    })
+  }, [])
+
   function selectTheme(theme: Theme) {
     dispatch({ type: 'SET_THEME', payload: { theme } })
+  }
+
+  async function handleCheckUpdates() {
+    if (!window.api?.updates) return
+    setCheckingUpdates(true)
+    setUpdateStatus('Checking…')
+    try {
+      await window.api.updates.check()
+    } catch {
+      setCheckingUpdates(false)
+      setUpdateStatus('Update check failed')
+    }
   }
 
   const isDark = DARK_IDS.includes(state.theme)
@@ -121,10 +164,10 @@ export function Settings({ onOpenHelp, isOnHelp }: { onOpenHelp?: () => void; is
       </button>
 
       {open && (
-        <div className={`absolute right-0 top-full mt-1.5 bg-panel border border-border rounded-xl shadow-2xl z-50 overflow-hidden animate-pop transition-all app-no-drag ${menuView === 'themes' ? 'w-44' : menuView === 'purge' ? 'w-52' : 'w-max min-w-[192px] max-w-[260px]'}`}>
+        <div className={`absolute right-0 top-full mt-1.5 bg-panel border border-border rounded-xl shadow-2xl z-50 overflow-hidden animate-pop transition-all app-no-drag ${menuView === 'themes' ? 'w-44' : menuView === 'purge' ? 'w-52' : 'w-[256px]'}`}>
           {menuView === 'main' ? (
             <>
-              <div className="px-2 pt-2 pb-1.5">
+              <div className="px-1 pt-2 pb-1.5">
                 <button
                   onClick={() => setMenuView('themes')}
                   className="w-full flex items-center justify-between px-2 py-1.5 text-xs text-fg hover:bg-fg/5 rounded-lg transition-colors group"
@@ -144,6 +187,27 @@ export function Settings({ onOpenHelp, isOnHelp }: { onOpenHelp?: () => void; is
                   </div>
                   <div className="flex items-center gap-1 text-muted group-hover:text-fg-2 transition-colors">
                     <span>{activeTheme.label}</span>
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                </button>
+              </div>
+
+              {/* Empty trash after */}
+              <div className="px-1 pb-1.5">
+                <button
+                  onClick={() => setMenuView('purge')}
+                  className="w-full flex items-center justify-between px-2 py-1.5 text-xs text-fg-2 hover:text-fg hover:bg-fg/5 rounded-lg transition-colors group"
+                >
+                  <div className="flex items-center gap-2">
+                    <svg className="w-3.5 h-3.5 flex-shrink-0" style={{ color: iconColor }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    <span className="font-medium text-fg-2 group-hover:text-fg">Auto-empty trash</span>
+                  </div>
+                  <div className="flex items-center gap-1 text-muted group-hover:text-fg-2 transition-colors">
+                    <span>{state.trashAutoPurge === null ? 'Never' : formatPurgeDuration(state.trashAutoPurge)}</span>
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
@@ -215,32 +279,69 @@ export function Settings({ onOpenHelp, isOnHelp }: { onOpenHelp?: () => void; is
                 </button>
               </div>
 
-              {/* Empty trash after */}
-              <button
-                onClick={() => setMenuView('purge')}
-                className="w-full flex items-center justify-between gap-4 pl-1 pr-2 py-1.5 mx-2 text-xs text-fg-2 hover:text-fg hover:bg-fg/5 rounded-lg transition-colors group"
-              >
-                <span className="font-medium pl-0.5 whitespace-nowrap">
-                  {state.trashAutoPurge === null ? 'Never auto-empty trash' : 'Empty trash every'}
-                </span>
-                <div className="flex items-center gap-1">
-                  {state.trashAutoPurge !== null && (
-                    <span style={{ color: iconColor }} className="font-semibold">{formatPurgeDuration(state.trashAutoPurge)}</span>
-                  )}
-                  <svg className="w-3.5 h-3.5 opacity-50 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
+              <div className="mx-3 my-0.5 border-t border-border" />
+
+              {/* Auto update toggle */}
+              <div className="group flex items-center justify-between px-3 py-2 mx-1 rounded-lg hover:bg-fg/5 transition-colors">
+                <div>
+                  <p className="text-xs text-fg-2 font-medium group-hover:text-fg transition-colors">Auto update checks</p>
+                  <p className="text-[10px] text-muted mt-0.5 group-hover:text-fg-2 transition-colors">
+                    {state.autoUpdateEnabled ? 'Check in the background' : 'Manual checks only'}
+                  </p>
                 </div>
-              </button>
+                <button
+                  role="switch"
+                  aria-checked={state.autoUpdateEnabled}
+                  onClick={() => dispatch({ type: 'SET_AUTO_UPDATE_ENABLED', payload: !state.autoUpdateEnabled })}
+                  className={`relative flex-shrink-0 w-9 h-5 rounded-full transition-colors duration-200 ${
+                    state.autoUpdateEnabled ? 'bg-accent' : 'bg-fg/20'
+                  }`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                    state.autoUpdateEnabled ? 'translate-x-4' : 'translate-x-0'
+                  }`} />
+                </button>
+              </div>
+
+              {/* Manual update check */}
+              <div className="px-1 pb-0.5">
+                <button
+                  onClick={handleCheckUpdates}
+                  disabled={checkingUpdates || !window.api?.updates}
+                  className="w-full text-left flex items-center justify-between px-3 py-2 text-xs text-fg-2 hover:text-fg hover:bg-fg/5 rounded-lg transition-colors group disabled:opacity-45 disabled:cursor-not-allowed"
+                >
+                  <span>{checkingUpdates ? 'Checking…' : 'Check for updates now'}</span>
+                  <svg className="w-3.5 h-3.5 opacity-50 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </button>
+                {updateError && (
+                  <div className="mt-1 mx-0 px-3 py-2 rounded-lg bg-red-500/8 border border-red-500/20 flex items-start gap-2">
+                    <p className="text-[10px] text-red-400 break-words leading-relaxed flex-1 min-w-0">{updateError}</p>
+                    <button
+                      onClick={() => setUpdateError('')}
+                      className="flex-shrink-0 text-red-400/50 hover:text-red-400 transition-colors mt-px"
+                      aria-label="Dismiss"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
+                {updateStatus && !updateError && (
+                  <p className="text-[10px] text-muted px-3 pb-1">{updateStatus}</p>
+                )}
+              </div>
 
               <div className="mx-3 my-0.5 border-t border-border" />
 
-              {/* Tips + About section */}
-              <div className="px-2 pt-1.5 pb-2 space-y-0.5">
+              {/* Help + About section */}
+              <div className="px-1 pt-1.5 pb-2 space-y-0.5">
                 {!isOnHelp && (
                   <button
                     onClick={() => { setOpen(false); onOpenHelp?.() }}
-                    className="w-full text-left pl-1 pr-2 py-1.5 text-xs text-fg-2 hover:text-fg hover:bg-fg/5 rounded-lg transition-colors flex items-center justify-between group"
+                    className="w-full text-left flex items-center justify-between px-3 py-2 text-xs text-fg-2 hover:text-fg hover:bg-fg/5 rounded-lg transition-colors group"
                   >
                     <span>Help Center</span>
                     <svg className="w-3.5 h-3.5 opacity-50 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -250,7 +351,7 @@ export function Settings({ onOpenHelp, isOnHelp }: { onOpenHelp?: () => void; is
                 )}
                 <button
                   onClick={() => { setOpen(false); setAboutOpen(true); }}
-                  className="w-full text-left pl-1 pr-2 py-1.5 text-xs text-fg-2 hover:text-fg hover:bg-fg/5 rounded-lg transition-colors flex items-center justify-between group"
+                  className="w-full text-left flex items-center justify-between px-3 py-2 text-xs text-fg-2 hover:text-fg hover:bg-fg/5 rounded-lg transition-colors group"
                 >
                   <span>About</span>
                   <svg className="w-4 h-4 opacity-50 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">

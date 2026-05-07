@@ -14,4 +14,5 @@ export const initialState: AppState = {
   deleteConfirmEnabled: true,
   holdAction: 'edit',
   trashAutoPurge: null,
+  autoUpdateEnabled: true,
 }

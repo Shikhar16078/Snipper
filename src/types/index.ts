@@ -60,4 +60,5 @@ export interface AppState {
   deleteConfirmEnabled: boolean
   holdAction: HoldAction
   trashAutoPurge: TrashAutoPurge
+  autoUpdateEnabled: boolean
 }

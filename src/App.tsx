@@ -9,6 +9,12 @@ import { TrashView } from './components/trash/TrashView'
 import { HelpView } from './components/help/HelpView'
 
 type PendingNav = { type: 'folder'; id: string | null } | { type: 'trash' }
+type UpdateCardState =
+  | { phase: 'idle' | 'checking' | 'up-to-date' }
+  | { phase: 'available'; version: string }
+  | { phase: 'downloading'; version?: string; progress: number }
+  | { phase: 'downloaded'; version: string }
+  | { phase: 'error'; message: string }
 
 const SIDEBAR_MIN = 200
 const SIDEBAR_MAX = 420
@@ -23,6 +29,8 @@ function AppShell() {
   const [trashOpen, setTrashOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
   const [pendingNav, setPendingNav] = useState<PendingNav | null>(null)
+  const [updateCard, setUpdateCard] = useState<UpdateCardState>({ phase: 'idle' })
+  const [updateDismissed, setUpdateDismissed] = useState(false)
   const editorRef = useRef<SnipEditorHandle>(null)
   const widthBeforeCollapse = useRef(SIDEBAR_DEFAULT)
   const isResizing = useRef(false)
@@ -98,6 +106,57 @@ function AppShell() {
       window.removeEventListener('mouseup', onMouseUp)
     }
   }, [])
+
+  useEffect(() => {
+    const updates = window.api?.updates
+    if (!updates) return
+    return updates.onEvent((payload) => {
+      if (payload.type === 'checking') {
+        setUpdateCard({ phase: 'checking' })
+      } else if (payload.type === 'available') {
+        setUpdateDismissed(false)
+        setUpdateCard({ phase: 'available', version: payload.version })
+      } else if (payload.type === 'not-available') {
+        setUpdateCard({ phase: 'up-to-date' })
+      } else if (payload.type === 'download-progress') {
+        setUpdateDismissed(false)
+        setUpdateCard((prev) => ({
+          phase: 'downloading',
+          version:
+            prev.phase === 'available' || prev.phase === 'downloaded' || prev.phase === 'downloading'
+              ? prev.version
+              : undefined,
+          progress: payload.percent,
+        }))
+      } else if (payload.type === 'downloaded') {
+        setUpdateDismissed(false)
+        setUpdateCard({ phase: 'downloaded', version: payload.version })
+      } else if (payload.type === 'error') {
+        setUpdateDismissed(false)
+        setUpdateCard({ phase: 'error', message: payload.message })
+      }
+    })
+  }, [])
+
+  useEffect(() => {
+    const updates = window.api?.updates
+    if (!updates || !window.api?.isPackaged || !state.autoUpdateEnabled) return
+    updates.check()
+    const id = setInterval(() => {
+      updates.check()
+    }, 6 * 60 * 60 * 1000)
+    return () => clearInterval(id)
+  }, [state.autoUpdateEnabled])
+
+  async function startUpdateDownload() {
+    if (!window.api?.updates) return
+    await window.api.updates.download()
+  }
+
+  async function installDownloadedUpdate() {
+    if (!window.api?.updates) return
+    await window.api.updates.install()
+  }
 
   // Global shortcut: N = new snip
   useEffect(() => {
@@ -295,6 +354,62 @@ function AppShell() {
             <SnipGrid onAdd={openCreateEditor} onEdit={openEditor} collapsed={collapsed} onToggleSidebar={toggleCollapse} onOpenHelp={() => setHelpOpen(true)} />
           )}
         </div>
+
+        {!updateDismissed && (updateCard.phase === 'available' || updateCard.phase === 'downloading' || updateCard.phase === 'downloaded' || updateCard.phase === 'error') && (
+          <div className="absolute bottom-4 right-4 z-50 w-80 rounded-xl border border-border bg-panel shadow-2xl p-3 app-no-drag update-card-enter">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold text-fg">
+                  {updateCard.phase === 'available' && `Update available${updateCard.version ? ` (v${updateCard.version})` : ''}`}
+                  {updateCard.phase === 'downloading' && 'Downloading update'}
+                  {updateCard.phase === 'downloaded' && `Ready to install${updateCard.version ? ` (v${updateCard.version})` : ''}`}
+                  {updateCard.phase === 'error' && 'Update failed'}
+                </p>
+                <p className="text-[11px] text-muted mt-1">
+                  {updateCard.phase === 'available' && 'A newer version of Snipper is available.'}
+                  {updateCard.phase === 'downloading' && `${Math.max(0, Math.min(100, Math.round(updateCard.progress)))}% downloaded`}
+                  {updateCard.phase === 'downloaded' && 'Restart Snipper to apply the update.'}
+                  {updateCard.phase === 'error' && updateCard.message}
+                </p>
+              </div>
+              <button
+                onClick={() => setUpdateDismissed(true)}
+                className="p-1 rounded-md text-muted hover:text-fg hover:bg-fg/8 transition-colors"
+                title="Dismiss"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="mt-2.5 flex items-center gap-2 justify-end">
+              {updateCard.phase === 'available' && (
+                <button
+                  onClick={startUpdateDownload}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors bg-accent hover:bg-accent-h text-white border-accent/60"
+                >
+                  Download update
+                </button>
+              )}
+              {updateCard.phase === 'downloaded' && (
+                <button
+                  onClick={installDownloadedUpdate}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors bg-accent hover:bg-accent-h text-white border-accent/60"
+                >
+                  Restart to install
+                </button>
+              )}
+              {updateCard.phase === 'error' && (
+                <button
+                  onClick={() => window.api?.updates?.check()}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-border text-fg-2 hover:text-fg hover:bg-fg/8 transition-colors"
+                >
+                  Check again
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
