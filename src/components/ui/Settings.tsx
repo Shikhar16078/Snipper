@@ -155,7 +155,7 @@ export function Settings() {
               </div>
 
               {/* Delete confirm toggle */}
-              <div className="flex items-center justify-between px-4 py-2 pb-3">
+              <div className="flex items-center justify-between px-4 py-2.5">
                 <div>
                   <p className="text-xs text-fg-2 font-medium">Delete prompt</p>
                   <p className="text-[10px] text-muted mt-0.5">{state.deleteConfirmEnabled ? 'Ask before deleting' : 'Delete directly'}</p>
@@ -170,6 +170,28 @@ export function Settings() {
                 >
                   <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${
                     state.deleteConfirmEnabled ? 'translate-x-4' : 'translate-x-0'
+                  }`} />
+                </button>
+              </div>
+
+              {/* Hold action toggle */}
+              <div className="flex items-center justify-between px-4 py-2 pb-3">
+                <div>
+                  <p className="text-xs text-fg-2 font-medium">Hold action</p>
+                  <p className="text-[10px] text-muted mt-0.5">
+                    {state.holdAction === 'copy' ? 'Hold to copy, click to edit' : 'Hold to edit, click to copy'}
+                  </p>
+                </div>
+                <button
+                  role="switch"
+                  aria-checked={state.holdAction === 'copy'}
+                  onClick={() => dispatch({ type: 'SET_HOLD_ACTION', payload: state.holdAction === 'copy' ? 'edit' : 'copy' })}
+                  className={`relative flex-shrink-0 w-9 h-5 rounded-full transition-colors duration-200 ${
+                    state.holdAction === 'copy' ? 'bg-accent' : 'bg-fg/20'
+                  }`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                    state.holdAction === 'copy' ? 'translate-x-4' : 'translate-x-0'
                   }`} />
                 </button>
               </div>

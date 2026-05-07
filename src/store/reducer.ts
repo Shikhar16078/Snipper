@@ -179,6 +179,9 @@ export function reducer(state: AppState, action: Action): AppState {
     case 'SET_DELETE_CONFIRM_ENABLED':
       return { ...state, deleteConfirmEnabled: action.payload }
 
+    case 'SET_HOLD_ACTION':
+      return { ...state, holdAction: action.payload }
+
     case 'TOGGLE_EDIT_MODE':
       return { ...state, isEditMode: !state.isEditMode }
 

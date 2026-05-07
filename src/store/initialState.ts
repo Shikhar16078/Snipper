@@ -12,4 +12,5 @@ export const initialState: AppState = {
   tipsEnabled: true,
   isEditMode: false,
   deleteConfirmEnabled: true,
+  holdAction: 'edit',
 }

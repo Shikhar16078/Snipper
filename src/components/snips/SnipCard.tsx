@@ -94,7 +94,9 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
       } else {
         holdActive.current = false
         holdSuppressClick.current = true
-        onEdit(snip)
+        setHoldProgress(0)
+        if (state.holdAction === 'copy') copy(snip.body)
+        else onEdit(snip)
       }
     }
     holdRafRef.current = requestAnimationFrame(tick)
@@ -117,7 +119,8 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
     if (holdSuppressClick.current) { holdSuppressClick.current = false; return }
     if (kebabRef.current?.contains(e.target as Node)) return
     if (linksRef.current?.contains(e.target as Node)) return
-    copy(snip.body)
+    if (state.holdAction === 'copy') onEdit(snip)
+    else copy(snip.body)
   }
 
   function handleDragStart(e: React.DragEvent) {
@@ -204,7 +207,7 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
           style={{
             filter: copied ? 'blur(4px)' : holdProgress > 0 ? `blur(${holdProgress * 3}px)` : undefined,
             opacity: copied ? 0.2 : holdProgress > 0 ? 1 - holdProgress * 0.65 : undefined,
-            transition: copied ? 'filter 500ms ease-in-out, opacity 500ms ease-in-out' : 'none',
+            transition: holdProgress === 0 ? 'filter 500ms ease-in-out, opacity 500ms ease-in-out' : 'none',
           }}
         >
           {/* Header row */}
