@@ -1,4 +1,4 @@
-import type { AppState, ViewMode, Theme, HoldAction } from '../types'
+import type { AppState, ViewMode, Theme, HoldAction, TrashAutoPurge } from '../types'
 
 export type Action =
   | { type: 'ADD_FOLDER'; payload: { name: string; parentId?: string | null } }
@@ -16,6 +16,8 @@ export type Action =
   | { type: 'SET_TIPS_ENABLED'; payload: boolean }
   | { type: 'SET_DELETE_CONFIRM_ENABLED'; payload: boolean }
   | { type: 'SET_HOLD_ACTION'; payload: HoldAction }
+  | { type: 'SET_TRASH_AUTO_PURGE'; payload: TrashAutoPurge }
+  | { type: 'PURGE_EXPIRED_TRASH' }
   | { type: 'TOGGLE_EDIT_MODE' }
   | { type: 'ADD_DIVIDER'; payload: { afterFolderId: string | null } }
   | { type: 'MOVE_DIVIDER'; payload: { id: string; afterFolderId: string | null } }

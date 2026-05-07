@@ -13,4 +13,5 @@ export const initialState: AppState = {
   isEditMode: false,
   deleteConfirmEnabled: true,
   holdAction: 'edit',
+  trashAutoPurge: null,
 }

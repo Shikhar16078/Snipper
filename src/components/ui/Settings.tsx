@@ -1,8 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
-import type { Theme } from '../../types'
+import type { Theme, TrashAutoPurge } from '../../types'
 import { useApp } from '../../store/AppContext'
 import { AboutModal } from '../modals/AboutModal'
-import { TipsModal } from '../modals/TipsModal'
 
 interface ThemeOption {
   id: Theme
@@ -27,6 +26,23 @@ const DARK_THEMES: ThemeOption[] = [
   { id: 'dark-ember',    label: 'Ember',    accent: '#F97316' },
   { id: 'dark-nebula',   label: 'Nebula',   accent: '#A78BFA' },
 ]
+
+const PURGE_PRESETS: { label: string; ms: TrashAutoPurge }[] = [
+  { label: 'Never',   ms: null },
+  { label: '1 hour',  ms: 60 * 60_000 },
+  { label: '7 days',  ms: 7 * 24 * 3_600_000 },
+]
+
+function formatPurgeDuration(ms: TrashAutoPurge): string {
+  if (ms === null) return 'Never'
+  if (ms < 3_600_000) return `${Math.round(ms / 60_000)} min`
+  if (ms < 86_400_000) {
+    const h = Math.round(ms / 3_600_000)
+    return `${h} hr`
+  }
+  const d = Math.round(ms / 86_400_000)
+  return `${d} day${d !== 1 ? 's' : ''}`
+}
 
 const ALL_THEMES = [DEFAULT_THEME, ...LIGHT_THEMES, ...DARK_THEMES]
 const DARK_IDS: Theme[] = ['stone', 'dark', 'dark-maroon', 'dark-midnight', 'dark-ember', 'dark-nebula']
@@ -53,17 +69,20 @@ function ThemeRow({ t, active, onSelect }: { t: ThemeOption; active: boolean; on
   )
 }
 
-export function Settings() {
+export function Settings({ onOpenHelp, isOnHelp }: { onOpenHelp?: () => void; isOnHelp?: boolean } = {}) {
   const { state, dispatch } = useApp()
   const [open, setOpen] = useState(false)
   const [aboutOpen, setAboutOpen] = useState(false)
-  const [tipsOpen, setTipsOpen] = useState(false)
-  const [menuView, setMenuView] = useState<'main' | 'themes'>('main')
+  const [menuView, setMenuView] = useState<'main' | 'themes' | 'purge'>('main')
+  const [customValue, setCustomValue] = useState('')
+  const [customUnit, setCustomUnit] = useState<'min' | 'hr' | 'day'>('day')
+  const [warnFlash, setWarnFlash] = useState(false)
+  const warnTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!open) {
-      setTimeout(() => setMenuView('main'), 200)
+      setTimeout(() => { setMenuView('main'); setCustomValue('') }, 200)
       return
     }
     function onClickOutside(e: MouseEvent) {
@@ -102,7 +121,7 @@ export function Settings() {
       </button>
 
       {open && (
-        <div className={`absolute right-0 top-full mt-1.5 bg-panel border border-border rounded-xl shadow-2xl z-50 overflow-hidden animate-pop transition-all ${menuView === 'themes' ? 'w-44' : 'w-48'}`}>
+        <div className={`absolute right-0 top-full mt-1.5 bg-panel border border-border rounded-xl shadow-2xl z-50 overflow-hidden animate-pop transition-all ${menuView === 'themes' ? 'w-44' : menuView === 'purge' ? 'w-52' : 'w-max min-w-[192px] max-w-[260px]'}`}>
           {menuView === 'main' ? (
             <>
               <div className="px-2 pt-2 pb-1.5">
@@ -135,10 +154,10 @@ export function Settings() {
               <div className="mx-3 my-0.5 border-t border-border" />
 
               {/* Tips toggle */}
-              <div className="flex items-center justify-between px-4 py-2.5">
+              <div className="group flex items-center justify-between px-3 py-2 mx-1 rounded-lg hover:bg-fg/5 transition-colors">
                 <div>
-                  <p className="text-xs text-fg-2 font-medium">Tips</p>
-                  <p className="text-[10px] text-muted mt-0.5">{state.tipsEnabled ? 'Showing tips' : 'Tips hidden'}</p>
+                  <p className="text-xs text-fg-2 font-medium group-hover:text-fg transition-colors">Tips</p>
+                  <p className="text-[10px] text-muted mt-0.5 group-hover:text-fg-2 transition-colors">{state.tipsEnabled ? 'Showing tips' : 'Tips hidden'}</p>
                 </div>
                 <button
                   role="switch"
@@ -155,10 +174,10 @@ export function Settings() {
               </div>
 
               {/* Delete confirm toggle */}
-              <div className="flex items-center justify-between px-4 py-2.5">
+              <div className="group flex items-center justify-between px-3 py-2 mx-1 rounded-lg hover:bg-fg/5 transition-colors">
                 <div>
-                  <p className="text-xs text-fg-2 font-medium">Delete prompt</p>
-                  <p className="text-[10px] text-muted mt-0.5">{state.deleteConfirmEnabled ? 'Ask before deleting' : 'Delete directly'}</p>
+                  <p className="text-xs text-fg-2 font-medium group-hover:text-fg transition-colors">Delete prompt</p>
+                  <p className="text-[10px] text-muted mt-0.5 group-hover:text-fg-2 transition-colors">{state.deleteConfirmEnabled ? 'Ask before deleting' : 'Delete directly'}</p>
                 </div>
                 <button
                   role="switch"
@@ -175,10 +194,10 @@ export function Settings() {
               </div>
 
               {/* Hold action toggle */}
-              <div className="flex items-center justify-between px-4 py-2 pb-3">
+              <div className="group flex items-center justify-between px-3 py-2 mx-1 rounded-lg hover:bg-fg/5 transition-colors">
                 <div>
-                  <p className="text-xs text-fg-2 font-medium">Hold action</p>
-                  <p className="text-[10px] text-muted mt-0.5">
+                  <p className="text-xs text-fg-2 font-medium group-hover:text-fg transition-colors">Hold action</p>
+                  <p className="text-[10px] text-muted mt-0.5 group-hover:text-fg-2 transition-colors">
                     {state.holdAction === 'copy' ? 'Hold to copy, click to edit' : 'Hold to edit, click to copy'}
                   </p>
                 </div>
@@ -196,30 +215,149 @@ export function Settings() {
                 </button>
               </div>
 
+              {/* Empty trash after */}
+              <button
+                onClick={() => setMenuView('purge')}
+                className="w-full flex items-center justify-between gap-4 pl-1 pr-2 py-1.5 mx-2 text-xs text-fg-2 hover:text-fg hover:bg-fg/5 rounded-lg transition-colors group"
+              >
+                <span className="font-medium pl-0.5 whitespace-nowrap">
+                  {state.trashAutoPurge === null ? 'Never auto-empty trash' : 'Empty trash every'}
+                </span>
+                <div className="flex items-center gap-1">
+                  {state.trashAutoPurge !== null && (
+                    <span style={{ color: iconColor }} className="font-semibold">{formatPurgeDuration(state.trashAutoPurge)}</span>
+                  )}
+                  <svg className="w-3.5 h-3.5 opacity-50 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
+              </button>
+
               <div className="mx-3 my-0.5 border-t border-border" />
 
               {/* Tips + About section */}
               <div className="px-2 pt-1.5 pb-2 space-y-0.5">
-                <button
-                  onClick={() => { setOpen(false); setTipsOpen(true) }}
-                  className="w-full text-left pl-1 pr-2 py-1.5 text-xs text-fg-2 hover:text-fg hover:bg-fg/5 rounded-lg transition-colors flex items-center justify-between group"
-                >
-                  <span>View Tips</span>
-                  <svg className="w-3.5 h-3.5 opacity-50 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                  </svg>
-                </button>
+                {!isOnHelp && (
+                  <button
+                    onClick={() => { setOpen(false); onOpenHelp?.() }}
+                    className="w-full text-left pl-1 pr-2 py-1.5 text-xs text-fg-2 hover:text-fg hover:bg-fg/5 rounded-lg transition-colors flex items-center justify-between group"
+                  >
+                    <span>Help Center</span>
+                    <svg className="w-3.5 h-3.5 opacity-50 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </button>
+                )}
                 <button
                   onClick={() => { setOpen(false); setAboutOpen(true); }}
                   className="w-full text-left pl-1 pr-2 py-1.5 text-xs text-fg-2 hover:text-fg hover:bg-fg/5 rounded-lg transition-colors flex items-center justify-between group"
                 >
-                  <span>About Snipper</span>
+                  <span>About</span>
                   <svg className="w-4 h-4 opacity-50 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </button>
               </div>
             </>
+          ) : menuView === 'purge' ? (
+            <div className="flex flex-col">
+              <div className="sticky top-0 bg-panel/80 backdrop-blur-md border-b border-border px-2 py-1.5 flex items-center gap-1 z-10">
+                <button onClick={() => setMenuView('main')} className="p-1 rounded-lg text-muted hover:text-fg hover:bg-fg/8 transition-colors">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+                <span className="text-xs font-semibold text-fg">Empty Trash After</span>
+              </div>
+
+              <div className="pt-1.5">
+                {PURGE_PRESETS.map(({ label, ms }) => (
+                  <button
+                    key={label}
+                    onClick={() => { dispatch({ type: 'SET_TRASH_AUTO_PURGE', payload: ms }); setMenuView('main') }}
+                    className={`w-full flex items-center gap-2.5 px-3 py-1.5 text-xs transition-colors ${
+                      state.trashAutoPurge === ms ? 'text-accent bg-accent/8 font-medium' : 'text-fg-2 hover:text-fg hover:bg-fg/5'
+                    }`}
+                  >
+                    {label}
+                    {state.trashAutoPurge === ms && <ActiveIcon />}
+                  </button>
+                ))}
+              </div>
+
+              <div className="mx-3 my-1.5 border-t border-border" />
+
+              <div className="px-3 pb-3">
+                <p className="text-[9px] font-semibold tracking-widest uppercase text-muted/60 mb-2 select-none">Custom</p>
+                <div className="flex gap-1.5">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={customValue}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      const max = customUnit === 'min' ? 60 : customUnit === 'hr' ? 24 : Infinity
+                      if (Number(val) > max) {
+                        if (warnTimerRef.current) clearTimeout(warnTimerRef.current)
+                        setWarnFlash(true)
+                        warnTimerRef.current = setTimeout(() => setWarnFlash(false), 1500)
+                        return
+                      }
+                      setWarnFlash(false)
+                      setCustomValue(val)
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        const n = Number(customValue)
+                        if (!n || n <= 0) return
+                        const unitMs = customUnit === 'min' ? 60_000 : customUnit === 'hr' ? 3_600_000 : 86_400_000
+                        dispatch({ type: 'SET_TRASH_AUTO_PURGE', payload: Math.round(n * unitMs) })
+                        setCustomValue('')
+                        setMenuView('main')
+                      }
+                    }}
+                    placeholder="30"
+                    className="w-14 bg-surface border border-border rounded-md px-2 py-1 text-xs text-fg placeholder-muted focus:outline-none focus:border-accent transition-colors"
+                  />
+                  <select
+                    value={customUnit}
+                    onChange={(e) => {
+                      const unit = e.target.value as 'min' | 'hr' | 'day'
+                      if (unit === 'hr' && Number(customValue) > 24) setCustomValue('24')
+                      if (unit === 'min' && Number(customValue) > 60) setCustomValue('60')
+                      setWarnFlash(false)
+                      setCustomUnit(unit)
+                    }}
+                    className="flex-1 bg-surface border border-border rounded-md px-1.5 py-1 text-xs text-fg focus:outline-none focus:border-accent transition-colors"
+                  >
+                    <option value="min">minutes</option>
+                    <option value="hr">hours</option>
+                    <option value="day">days</option>
+                  </select>
+                </div>
+                {(customUnit === 'hr' || customUnit === 'min') && (
+                  <p className={`text-[10px] mt-1.5 transition-colors duration-300 ${
+                    warnFlash ? 'text-orange-400 font-medium' : 'text-muted'
+                  }`}>
+                    {customUnit === 'min' ? 'Max 60 min — use hours for longer.' : 'Max 24 hrs — use days for longer.'}
+                  </p>
+                )}
+                <button
+                  onClick={() => {
+                    const n = Number(customValue)
+                    if (!n || n <= 0) return
+                    const unitMs = customUnit === 'min' ? 60_000 : customUnit === 'hr' ? 3_600_000 : 86_400_000
+                    dispatch({ type: 'SET_TRASH_AUTO_PURGE', payload: Math.round(n * unitMs) })
+                    setCustomValue('')
+                    setMenuView('main')
+                  }}
+                  disabled={!customValue || Number(customValue) <= 0}
+                  className="mt-2 w-full py-1 text-xs font-semibold text-white bg-accent hover:bg-accent/90 disabled:opacity-40 disabled:cursor-not-allowed rounded-md transition-colors"
+                >
+                  Set
+                </button>
+              </div>
+            </div>
           ) : (
             <div className="flex flex-col max-h-[60vh] overflow-y-auto">
               <div className="sticky top-0 bg-panel/80 backdrop-blur-md border-b border-border px-2 py-1.5 flex items-center gap-1 z-10">
@@ -269,7 +407,6 @@ export function Settings() {
     </div>
 
     <AboutModal open={aboutOpen} onClose={() => setAboutOpen(false)} />
-    <TipsModal open={tipsOpen} onClose={() => setTipsOpen(false)} />
-    </>
+</>
   )
 }

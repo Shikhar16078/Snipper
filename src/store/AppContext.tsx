@@ -60,11 +60,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
       } else {
         loaded = loadFromLocalStorage()
       }
+      // Sanitize: if trashAutoPurge is a legacy string value, reset to null
+      if (typeof loaded.trashAutoPurge === 'string') loaded = { ...loaded, trashAutoPurge: null }
       dispatch({ type: 'LOAD_STATE', payload: loaded })
+      if (loaded.trashAutoPurge !== null) dispatch({ type: 'PURGE_EXPIRED_TRASH' })
       initialized.current = true
     }
     load()
   }, [])
+
+  // Periodic purge — runs every 60s while auto-purge is active
+  useEffect(() => {
+    if (state.trashAutoPurge === null) return
+    const id = setInterval(() => dispatch({ type: 'PURGE_EXPIRED_TRASH' }), 60_000)
+    return () => clearInterval(id)
+  }, [state.trashAutoPurge])
 
   // Debounced save on state change (skip until initialized)
   const save = useCallback(

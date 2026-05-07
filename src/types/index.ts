@@ -22,6 +22,7 @@ export interface Snip {
 
 export type ViewMode = 'grid' | 'list'
 export type HoldAction = 'edit' | 'copy'
+export type TrashAutoPurge = number | null  // null = off, number = ms until permanent deletion
 export type Theme =
   | 'stone'
   | 'light' | 'light-pink' | 'light-sage' | 'light-dusk' | 'light-arctic'
@@ -58,4 +59,5 @@ export interface AppState {
   isEditMode: boolean
   deleteConfirmEnabled: boolean
   holdAction: HoldAction
+  trashAutoPurge: TrashAutoPurge
 }

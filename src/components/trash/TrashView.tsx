@@ -17,12 +17,25 @@ function timeAgo(ms: number): string {
   return `${Math.floor(hrs / 24)}d ago`
 }
 
+function formatPurgeDue(deletedAt: number, purgeMs: number | null): { label: string; urgent: boolean } | null {
+  if (purgeMs === null) return null
+  const remaining = deletedAt + purgeMs - Date.now()
+  if (remaining <= 0) return { label: 'Deleting soon', urgent: true }
+  const mins = Math.ceil(remaining / 60_000)
+  if (mins < 60) return { label: `${mins}m left`, urgent: true }
+  const hrs = Math.ceil(remaining / 3_600_000)
+  if (hrs < 24) return { label: `${hrs}h left`, urgent: true }
+  const days = Math.ceil(remaining / 86_400_000)
+  return { label: `${days}d left`, urgent: false }
+}
+
 interface TrashViewProps {
   collapsed: boolean
   onToggleSidebar: () => void
+  onOpenHelp: () => void
 }
 
-export function TrashView({ collapsed, onToggleSidebar }: TrashViewProps) {
+export function TrashView({ collapsed, onToggleSidebar, onOpenHelp }: TrashViewProps) {
   const { state, dispatch } = useApp()
   const [expandAll, setExpandAll] = useState(false)
   const [search, setSearch] = useState('')
@@ -186,7 +199,7 @@ export function TrashView({ collapsed, onToggleSidebar }: TrashViewProps) {
         )}
 
         {/* Settings */}
-        <Settings />
+        <Settings onOpenHelp={onOpenHelp} />
       </div>
 
       {/* Cards */}
@@ -256,6 +269,7 @@ export function TrashView({ collapsed, onToggleSidebar }: TrashViewProps) {
 
 function TrashedSnipCard({ item, expanded }: { item: TrashedSnip; expanded: boolean }) {
   const { state, dispatch } = useApp()
+  const purgeDue = formatPurgeDue(item.deletedAt, state.trashAutoPurge)
   const { copy, copied } = useCopyToClipboard(1500)
   const [confirmRestore, setConfirmRestore] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -306,9 +320,9 @@ function TrashedSnipCard({ item, expanded }: { item: TrashedSnip; expanded: bool
         <div className="p-3">
           <div className={`transition-[filter,opacity] duration-500 ease-in-out ${copied ? 'blur-[4px] opacity-20' : ''}`}>
             {/* Header */}
-            <div className="mb-2.5">
+            <div className="flex items-start justify-between gap-2 mb-2.5">
               <h3 className="text-sm font-semibold leading-snug text-fg truncate">{item.snip.name}</h3>
-              <p className="text-[10px] text-muted mt-0.5">{timeAgo(item.deletedAt)}</p>
+              <span className="flex-shrink-0 text-[10px] font-medium text-fg/30 border border-fg/30 bg-fg/8 rounded-md px-1.5 py-0.5 -mt-0.5">{timeAgo(item.deletedAt)}</span>
             </div>
 
             {/* Body */}
@@ -316,8 +330,17 @@ function TrashedSnipCard({ item, expanded }: { item: TrashedSnip; expanded: bool
               {item.snip.body}
             </p>
 
-            {/* Footer row: Links + Delete + Recover */}
+            {/* Footer row: purge label + Links + Recover + Delete */}
             <div className="mt-3 pt-2.5 border-t border-border/60 flex items-center gap-1.5">
+              {purgeDue && (
+                <span className={`text-[10px] font-medium border rounded-md px-1.5 py-0.5 ${
+                  purgeDue.urgent
+                    ? 'text-red-400 border-red-400/40 bg-red-400/5'
+                    : 'text-orange-400 border-orange-400/40 bg-orange-400/5'
+                }`}>
+                  {purgeDue.label}
+                </span>
+              )}
               {links.length > 0 && (
                 links.length === 1 ? (
                   <button
@@ -438,6 +461,7 @@ function TrashedSnipCard({ item, expanded }: { item: TrashedSnip; expanded: bool
 
 function TrashedFolderCard({ item }: { item: TrashedFolder }) {
   const { state, dispatch } = useApp()
+  const purgeDue = formatPurgeDue(item.deletedAt, state.trashAutoPurge)
   const [confirmRestore, setConfirmRestore] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
@@ -465,10 +489,8 @@ function TrashedFolderCard({ item }: { item: TrashedFolder }) {
             <svg className="w-4 h-4 flex-shrink-0 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
             </svg>
-            <div className="min-w-0">
-              <h3 className="text-sm font-semibold leading-snug text-fg truncate">{name}</h3>
-              <p className="text-[10px] text-muted mt-0.5">{timeAgo(item.deletedAt)}</p>
-            </div>
+            <h3 className="text-sm font-semibold leading-snug text-fg truncate flex-1 min-w-0">{name}</h3>
+            <span className="flex-shrink-0 text-[10px] text-muted border border-border rounded-md px-1.5 py-0.5">{timeAgo(item.deletedAt)}</span>
           </div>
 
           <p className="text-xs text-muted">{subtitle}</p>
@@ -486,7 +508,13 @@ function TrashedFolderCard({ item }: { item: TrashedFolder }) {
           )}
 
           {/* Action buttons */}
-          <div className="mt-3 pt-2.5 border-t border-border/60 flex justify-end gap-1.5">
+          <div className="mt-3 pt-2.5 border-t border-border/60 flex items-center gap-1.5">
+            {purgeDue && (
+              <span className={`text-[10px] font-medium ${purgeDue.urgent ? 'text-red-400' : 'text-orange-400'}`}>
+                {purgeDue.label}
+              </span>
+            )}
+            <div className="flex-1" />
             <button
               onClick={() => setConfirmRestore(true)}
               className="flex items-center gap-1 text-[11px] font-medium text-accent border border-accent/30 hover:border-accent/60 hover:bg-accent/8 px-2 py-1 rounded-lg transition-colors"

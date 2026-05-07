@@ -1,6 +1,7 @@
-import type { AppState, Folder, TrashedFolder, TrashedSnip } from '../types'
+import type { AppState, Folder, TrashedFolder, TrashedSnip, TrashAutoPurge } from '../types'
 import type { Action } from './actions'
 import { generateId } from '../utils/id'
+
 
 function sanitizeLinkTitles(linkTitles?: Record<string, string>): Record<string, string> | undefined {
   if (!linkTitles) return undefined
@@ -181,6 +182,15 @@ export function reducer(state: AppState, action: Action): AppState {
 
     case 'SET_HOLD_ACTION':
       return { ...state, holdAction: action.payload }
+
+    case 'SET_TRASH_AUTO_PURGE':
+      return { ...state, trashAutoPurge: action.payload }
+
+    case 'PURGE_EXPIRED_TRASH': {
+      if (state.trashAutoPurge === null) return state
+      const cutoff = Date.now() - state.trashAutoPurge
+      return { ...state, trash: state.trash.filter((t) => t.deletedAt > cutoff) }
+    }
 
     case 'TOGGLE_EDIT_MODE':
       return { ...state, isEditMode: !state.isEditMode }
