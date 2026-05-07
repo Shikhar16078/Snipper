@@ -10,12 +10,31 @@ export interface Folder {
   createdAt: number
 }
 
+export interface Tag {
+  id: string
+  name: string
+  color: string
+}
+
+export const TAG_COLORS = [
+  { id: 'red',    hex: '#ef4444' },
+  { id: 'orange', hex: '#f97316' },
+  { id: 'amber',  hex: '#f59e0b' },
+  { id: 'green',  hex: '#22c55e' },
+  { id: 'teal',   hex: '#14b8a6' },
+  { id: 'blue',   hex: '#3b82f6' },
+  { id: 'violet', hex: '#8b5cf6' },
+  { id: 'pink',   hex: '#ec4899' },
+  { id: 'slate',  hex: '#64748b' },
+] as const
+
 export interface Snip {
   id: string
   folderId: string
   name: string
   body: string
   linkTitles?: Record<string, string>
+  tagIds?: string[]
   createdAt: number
   updatedAt: number
   pinned?: boolean
@@ -55,7 +74,9 @@ export interface AppState {
   snips: Snip[]
   dividers: Divider[]
   trash: TrashedItem[]
+  tags: Tag[]
   selectedFolderId: string | null
+  selectedTagId: string | null
   viewMode: ViewMode
   theme: Theme
   allSnipsLabel: string

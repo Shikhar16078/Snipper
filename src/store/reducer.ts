@@ -1,4 +1,4 @@
-import type { AppState, Folder, TrashedFolder, TrashedSnip } from '../types'
+import type { AppState, Folder, Tag, TrashedFolder, TrashedSnip } from '../types'
 import type { Action } from './actions'
 import { generateId } from '../utils/id'
 
@@ -108,7 +108,37 @@ export function reducer(state: AppState, action: Action): AppState {
     }
 
     case 'SELECT_FOLDER':
-      return { ...state, selectedFolderId: action.payload.id }
+      return { ...state, selectedFolderId: action.payload.id, selectedTagId: null }
+
+    case 'ADD_TAG': {
+      const tag: Tag = { id: action.payload.id ?? generateId(), name: action.payload.name, color: action.payload.color }
+      return { ...state, tags: [...state.tags, tag] }
+    }
+
+    case 'EDIT_TAG':
+      return {
+        ...state,
+        tags: state.tags.map((t) => t.id === action.payload.id ? { ...t, name: action.payload.name, color: action.payload.color } : t),
+      }
+
+    case 'DELETE_TAG': {
+      const id = action.payload.id
+      return {
+        ...state,
+        tags: state.tags.filter((t) => t.id !== id),
+        snips: state.snips.map((s) => ({ ...s, tagIds: s.tagIds?.filter((tid) => tid !== id) })),
+        selectedTagId: state.selectedTagId === id ? null : state.selectedTagId,
+      }
+    }
+
+    case 'SELECT_TAG':
+      return { ...state, selectedTagId: action.payload.id, selectedFolderId: null }
+
+    case 'SET_SNIP_TAGS':
+      return {
+        ...state,
+        snips: state.snips.map((s) => s.id === action.payload.snipId ? { ...s, tagIds: action.payload.tagIds } : s),
+      }
 
     case 'ADD_SNIP':
       return {
@@ -121,6 +151,7 @@ export function reducer(state: AppState, action: Action): AppState {
             name: action.payload.name,
             body: action.payload.body,
             linkTitles: sanitizeLinkTitles(action.payload.linkTitles),
+            tagIds: action.payload.tagIds,
             createdAt: Date.now(),
             updatedAt: Date.now(),
           },
@@ -138,6 +169,7 @@ export function reducer(state: AppState, action: Action): AppState {
                 body: action.payload.body,
                 folderId: action.payload.folderId,
                 linkTitles: sanitizeLinkTitles(action.payload.linkTitles),
+                ...(action.payload.tagIds !== undefined ? { tagIds: action.payload.tagIds } : {}),
                 updatedAt: Date.now(),
               }
             : s,
