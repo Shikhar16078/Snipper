@@ -102,7 +102,7 @@ export function Settings({ onOpenHelp, isOnHelp }: { onOpenHelp?: () => void; is
 
   return (
     <>
-    <div ref={ref} className="relative">
+    <div ref={ref} className="relative app-no-drag">
       {/* Gear trigger — fills navbar height */}
       <button
         onClick={() => setOpen((o) => !o)}
@@ -121,7 +121,7 @@ export function Settings({ onOpenHelp, isOnHelp }: { onOpenHelp?: () => void; is
       </button>
 
       {open && (
-        <div className={`absolute right-0 top-full mt-1.5 bg-panel border border-border rounded-xl shadow-2xl z-50 overflow-hidden animate-pop transition-all ${menuView === 'themes' ? 'w-44' : menuView === 'purge' ? 'w-52' : 'w-max min-w-[192px] max-w-[260px]'}`}>
+        <div className={`absolute right-0 top-full mt-1.5 bg-panel border border-border rounded-xl shadow-2xl z-50 overflow-hidden animate-pop transition-all app-no-drag ${menuView === 'themes' ? 'w-44' : menuView === 'purge' ? 'w-52' : 'w-max min-w-[192px] max-w-[260px]'}`}>
           {menuView === 'main' ? (
             <>
               <div className="px-2 pt-2 pb-1.5">
