@@ -67,11 +67,19 @@ Snipper automatically detects URLs in your snippet body. If the entire body is a
 
 ### 🗑️ Trash & Restore
 
-Deleted snippets and folders go to Trash instead of being permanently removed. Open Trash from the sidebar to browse recently deleted items, restore them with one click, or permanently delete what you don't need. Restoring a folder brings back its entire nested structure.
+Deleted snippets and folders go to Trash instead of being permanently removed. Open Trash from the sidebar to browse recently deleted items, restore them with one click, or permanently delete what you don't need. Restoring a folder brings back its entire nested structure. Set Trash to auto-empty after a chosen duration (1 hour, 7 days, or a custom interval) in Settings.
 
 ### 🗃️ Grid & List Views
 
 Toggle between a grid layout for a quick visual overview or a compact list view when you have a lot of snippets.
+
+### ❓ Help Center
+
+A built-in Help Center (accessible from the Settings gear) organises all tips and shortcuts into searchable categories: Getting Started, Working with Snips, Folders & Sidebar, Search & Navigation, and Trash & Recovery.
+
+### 🔄 Update Checking
+
+Check for new versions directly from the Settings gear. When an update is available, download the installer straight to your Downloads folder with a live progress bar. Auto-update checks can also run silently in the background on launch.
 
 ### 🔒 Fully Local & Private
 
@@ -85,6 +93,9 @@ Everything is stored as a plain JSON file on your own machine. Nothing is sent t
 | `Cmd/Ctrl + F` | Focus search |
 | `Cmd/Ctrl + S` | Save in editor |
 | `Escape` | Close editor / clear search |
+| `E` (hover card) | Open snippet in editor |
+| `C` (hover card) | Copy snippet to clipboard |
+| `D` (hover card) | Delete snippet |
 
 ---
 
