@@ -34,7 +34,7 @@ export function AboutModal({ open, onClose }: AboutModalProps) {
               onClick={() => { setPatchNotesOpen(true); }}
               className="px-4 py-2 bg-fg/5 hover:bg-fg/10 text-fg font-medium rounded-lg text-xs transition-colors"
             >
-              Patch Notes
+              What's New?
             </button>
             <button
               onClick={onClose}

@@ -16,6 +16,10 @@ interface SnipCardProps {
 
 const HOLD_DURATION = 200
 
+// Module-level tracker so mouse position persists across card remounts
+const mousePos = { x: -1, y: -1 }
+document.addEventListener('mousemove', (e) => { mousePos.x = e.clientX; mousePos.y = e.clientY }, { passive: true })
+
 export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
   const { state, dispatch } = useApp()
   const { copy, copied } = useCopyToClipboard(1500)
@@ -28,6 +32,8 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
   const [moveSearch, setMoveSearch] = useState('')
   const [isDragging, setIsDragging] = useState(false)
   const [holdProgress, setHoldProgress] = useState(0)
+  const [isHovered, setIsHovered] = useState(false)
+  const cardRef = useRef<HTMLDivElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const kebabRef = useRef<HTMLButtonElement>(null)
   const linksRef = useRef<HTMLDivElement>(null)
@@ -39,6 +45,36 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
   const links = extractLinks(snip.body)
 
   useEffect(() => () => { if (holdRafRef.current) cancelAnimationFrame(holdRafRef.current) }, [])
+
+  // On mount, detect if cursor is already over the card (handles remount after editor/trash closes).
+  // Delayed past the view-enter animation (320ms) to avoid Chromium cursor flicker during GPU repaint.
+  useEffect(() => {
+    const id = setTimeout(() => {
+      if (mousePos.x < 0 || !cardRef.current) return
+      const el = document.elementFromPoint(mousePos.x, mousePos.y)
+      if (cardRef.current.contains(el)) setIsHovered(true)
+    }, 350)
+    return () => clearTimeout(id)
+  }, [])
+
+  useEffect(() => {
+    if (!isHovered) return
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.metaKey || e.ctrlKey || e.altKey) return
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      if (menuOpen || deleteConfirmOpen) return
+      const key = e.key.toLowerCase()
+      if (key === 'e') { e.preventDefault(); onEdit(snip) }
+      else if (key === 'c') { e.preventDefault(); copy(snip.body) }
+      else if (key === 'd') {
+        e.preventDefault()
+        if (state.deleteConfirmEnabled) setDeleteConfirmOpen(true)
+        else dispatch({ type: 'DELETE_SNIP', payload: { id: snip.id } })
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [isHovered, menuOpen, deleteConfirmOpen, snip, state.deleteConfirmEnabled, onEdit, copy, dispatch])
 
   useEffect(() => {
     if (!menuOpen) return
@@ -62,6 +98,23 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
   useEffect(() => {
     if (!menuOpen) { setMenuView('main'); setMoveSearch('') }
   }, [menuOpen])
+
+  useEffect(() => {
+    if (!deleteConfirmOpen) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        dispatch({ type: 'DELETE_SNIP', payload: { id: snip.id } })
+        setDeleteConfirmOpen(false)
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    // Restore hover when modal closes so keyboard shortcuts still work
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      setIsHovered(true)
+    }
+  }, [deleteConfirmOpen, snip.id, dispatch])
 
   useEffect(() => {
     if (!linksOpen) return
@@ -94,7 +147,9 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
       } else {
         holdActive.current = false
         holdSuppressClick.current = true
-        onEdit(snip)
+        setHoldProgress(0)
+        if (state.holdAction === 'copy') copy(snip.body)
+        else onEdit(snip)
       }
     }
     holdRafRef.current = requestAnimationFrame(tick)
@@ -117,7 +172,8 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
     if (holdSuppressClick.current) { holdSuppressClick.current = false; return }
     if (kebabRef.current?.contains(e.target as Node)) return
     if (linksRef.current?.contains(e.target as Node)) return
-    copy(snip.body)
+    if (state.holdAction === 'copy') onEdit(snip)
+    else copy(snip.body)
   }
 
   function handleDragStart(e: React.DragEvent) {
@@ -158,9 +214,12 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
   return (
     <>
     <div
+      ref={cardRef}
       draggable
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       onMouseDown={startHold}
       onClick={handleCardClick}
       onContextMenu={(e) => { e.preventDefault(); openMenu(e.clientX, e.clientY) }}
@@ -204,7 +263,7 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
           style={{
             filter: copied ? 'blur(4px)' : holdProgress > 0 ? `blur(${holdProgress * 3}px)` : undefined,
             opacity: copied ? 0.2 : holdProgress > 0 ? 1 - holdProgress * 0.65 : undefined,
-            transition: copied ? 'filter 500ms ease-in-out, opacity 500ms ease-in-out' : 'none',
+            transition: holdProgress === 0 ? 'filter 500ms ease-in-out, opacity 500ms ease-in-out' : 'none',
           }}
         >
           {/* Header row */}

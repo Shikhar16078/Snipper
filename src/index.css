@@ -358,3 +358,107 @@ html.dark.dark-nebula {
 .view-enter {
   animation: view-enter 0.32s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
+
+/* Help Center category content stagger reveal */
+@keyframes help-content-stagger-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.996);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.help-content-stagger {
+  opacity: 0;
+  animation: help-content-stagger-in 0.48s cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: transform, opacity;
+}
+
+@keyframes help-footer-prev-in {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes help-footer-next-in {
+  from {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes help-footer-index-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes help-footer-nav-focus {
+  0% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-1px);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+.help-footer-nav {
+  border-radius: 9999px;
+  padding: 0.3rem 0.55rem;
+}
+
+.help-footer-nav:hover {
+  background: rgb(var(--fg) / 0.08);
+}
+
+.help-footer-nav-prev {
+  animation: help-footer-prev-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.help-footer-nav-next {
+  animation: help-footer-next-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.help-footer-index {
+  animation: help-footer-index-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.help-footer-nav-active {
+  animation: help-footer-nav-focus 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes update-card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.update-card-enter {
+  animation: update-card-enter 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: transform, opacity;
+}

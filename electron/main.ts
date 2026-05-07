@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, shell, systemPreferences } from 'electron'
 import path from 'path'
 import fs from 'fs'
+import { autoUpdater } from 'electron-updater'
 
 const isDev = process.env['NODE_ENV'] === 'development'
 
@@ -13,6 +14,7 @@ interface AppState {
   theme: string
   allSnipsLabel: string
   tipsEnabled: boolean
+  autoUpdateEnabled: boolean
 }
 
 const defaultState: AppState = {
@@ -24,6 +26,7 @@ const defaultState: AppState = {
   theme: 'stone',
   allSnipsLabel: 'All Snips',
   tipsEnabled: true,
+  autoUpdateEnabled: true,
 }
 
 function getDataPath(): string {
@@ -47,9 +50,75 @@ function saveData(data: AppState): void {
   }
 }
 
+type UpdaterEvent =
+  | { type: 'checking' }
+  | { type: 'available'; version: string }
+  | { type: 'not-available' }
+  | { type: 'download-progress'; percent: number }
+  | { type: 'downloaded'; version: string }
+  | { type: 'error'; message: string }
+
+function emitUpdaterEvent(payload: UpdaterEvent): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    win.webContents.send('updates:event', payload)
+  }
+}
+
+function setupAutoUpdater(): void {
+  if (!app.isPackaged) return
+
+  autoUpdater.autoDownload = false
+  autoUpdater.autoInstallOnAppQuit = true
+
+  autoUpdater.on('checking-for-update', () => {
+    emitUpdaterEvent({ type: 'checking' })
+  })
+
+  autoUpdater.on('update-available', (info) => {
+    emitUpdaterEvent({ type: 'available', version: info.version })
+  })
+
+  autoUpdater.on('update-not-available', () => {
+    emitUpdaterEvent({ type: 'not-available' })
+  })
+
+  autoUpdater.on('download-progress', (progress) => {
+    emitUpdaterEvent({ type: 'download-progress', percent: progress.percent })
+  })
+
+  autoUpdater.on('update-downloaded', (info) => {
+    emitUpdaterEvent({ type: 'downloaded', version: info.version })
+  })
+
+  autoUpdater.on('error', (error) => {
+    emitUpdaterEvent({ type: 'error', message: error.message || 'Update failed.' })
+  })
+}
+
 ipcMain.handle('store:load', () => loadData())
 ipcMain.handle('store:save', (_event, data: AppState) => saveData(data))
 ipcMain.handle('shell:openUrl', (_event, url: string) => shell.openExternal(url))
+ipcMain.handle('updates:check', async () => {
+  if (!app.isPackaged) {
+    emitUpdaterEvent({ type: 'error', message: 'Update checks are unavailable in development builds.' })
+    return { ok: false }
+  }
+  await autoUpdater.checkForUpdates()
+  return { ok: true }
+})
+ipcMain.handle('updates:download', async () => {
+  if (!app.isPackaged) {
+    emitUpdaterEvent({ type: 'error', message: 'Update download is unavailable in development builds.' })
+    return { ok: false }
+  }
+  await autoUpdater.downloadUpdate()
+  return { ok: true }
+})
+ipcMain.handle('updates:install', () => {
+  if (!app.isPackaged) return { ok: false }
+  setImmediate(() => autoUpdater.quitAndInstall())
+  return { ok: true }
+})
 ipcMain.handle('titlebar:doubleclick', (event) => {
   const win = BrowserWindow.fromWebContents(event.sender)
   if (!win) return
@@ -109,6 +178,7 @@ function createWindow() {
 
 app.whenReady().then(() => {
   createWindow()
+  setupAutoUpdater()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

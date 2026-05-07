@@ -1,5 +1,18 @@
 [
   {
+    "version": "1.2.0",
+    "date": "May 7, 2026",
+    "changes": [
+      "Improved the overall app experience with UI polish and bug fixes",
+      "Added a new Help Center with useful guides and tips in Settings",
+      "New Auto Empty Trash option to automatically delete trashed items after a chosen time",
+      "You can now check for app updates directly from Settings, with optional automatic update checks",
+      "Added a new option for hold actions: choose between opening the editor or copying a snip",
+      "New keyboard shortcuts on snip cards: press E to edit, C to copy, and D to delete",
+      "Redesigned Settings page with a cleaner layout and better organization"
+    ]
+  },
+  {
     "version": "1.1.0",
     "date": "May 4, 2026",
     "changes": [

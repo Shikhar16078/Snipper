@@ -9,9 +9,10 @@ interface SidebarProps {
   onCollapse: () => void
   trashOpen: boolean
   onTrashClick: () => void
+  onSelectFolder: (id: string | null) => void
 }
 
-export function Sidebar({ onCollapse, trashOpen, onTrashClick }: SidebarProps) {
+export function Sidebar({ onCollapse, trashOpen, onTrashClick, onSelectFolder }: SidebarProps) {
   const { state, dispatch } = useApp()
   const { draggingSnipId } = useDrag()
   const [trashDragOver, setTrashDragOver] = useState(false)
@@ -92,8 +93,7 @@ export function Sidebar({ onCollapse, trashOpen, onTrashClick }: SidebarProps) {
           } ${renamingAll ? '' : 'cursor-pointer'}`}
           onClick={() => {
             if (!renamingAll) {
-              dispatch({ type: 'SELECT_FOLDER', payload: { id: null } })
-              if (trashOpen) onTrashClick()
+              onSelectFolder(null)
             }
           }}
         >
@@ -189,9 +189,8 @@ export function Sidebar({ onCollapse, trashOpen, onTrashClick }: SidebarProps) {
                     isSelected ? 'bg-accent/10 text-accent' : 'text-fg-2 hover:text-fg hover:bg-fg/6'
                   }`}
                   onClick={() => {
-                    dispatch({ type: 'SELECT_FOLDER', payload: { id: folder.id } })
+                    onSelectFolder(folder.id)
                     setFolderSearch('')
-                    if (trashOpen) onTrashClick()
                   }}
                 >
                   <svg className={`w-3.5 h-3.5 flex-shrink-0 ${isSelected ? 'text-accent' : 'text-muted'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -219,6 +218,7 @@ export function Sidebar({ onCollapse, trashOpen, onTrashClick }: SidebarProps) {
                 isSelected={state.selectedFolderId === folder.id && !trashOpen}
                 depth={0}
                 onNavigate={() => { if (trashOpen) onTrashClick() }}
+                onSelect={onSelectFolder}
               />
             ))}
           </>

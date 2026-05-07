@@ -1,8 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
-import type { Theme } from '../../types'
+import type { Theme, TrashAutoPurge } from '../../types'
 import { useApp } from '../../store/AppContext'
 import { AboutModal } from '../modals/AboutModal'
-import { TipsModal } from '../modals/TipsModal'
 
 interface ThemeOption {
   id: Theme
@@ -27,6 +26,23 @@ const DARK_THEMES: ThemeOption[] = [
   { id: 'dark-ember',    label: 'Ember',    accent: '#F97316' },
   { id: 'dark-nebula',   label: 'Nebula',   accent: '#A78BFA' },
 ]
+
+const PURGE_PRESETS: { label: string; ms: TrashAutoPurge }[] = [
+  { label: 'Never',   ms: null },
+  { label: '1 hour',  ms: 60 * 60_000 },
+  { label: '7 days',  ms: 7 * 24 * 3_600_000 },
+]
+
+function formatPurgeDuration(ms: TrashAutoPurge): string {
+  if (ms === null) return 'Never'
+  if (ms < 3_600_000) return `${Math.round(ms / 60_000)} min`
+  if (ms < 86_400_000) {
+    const h = Math.round(ms / 3_600_000)
+    return `${h} hr`
+  }
+  const d = Math.round(ms / 86_400_000)
+  return `${d} day${d !== 1 ? 's' : ''}`
+}
 
 const ALL_THEMES = [DEFAULT_THEME, ...LIGHT_THEMES, ...DARK_THEMES]
 const DARK_IDS: Theme[] = ['stone', 'dark', 'dark-maroon', 'dark-midnight', 'dark-ember', 'dark-nebula']
@@ -53,17 +69,23 @@ function ThemeRow({ t, active, onSelect }: { t: ThemeOption; active: boolean; on
   )
 }
 
-export function Settings() {
+export function Settings({ onOpenHelp, isOnHelp }: { onOpenHelp?: () => void; isOnHelp?: boolean } = {}) {
   const { state, dispatch } = useApp()
   const [open, setOpen] = useState(false)
   const [aboutOpen, setAboutOpen] = useState(false)
-  const [tipsOpen, setTipsOpen] = useState(false)
-  const [menuView, setMenuView] = useState<'main' | 'themes'>('main')
+  const [menuView, setMenuView] = useState<'main' | 'themes' | 'purge'>('main')
+  const [customValue, setCustomValue] = useState('')
+  const [customUnit, setCustomUnit] = useState<'min' | 'hr' | 'day'>('day')
+  const [warnFlash, setWarnFlash] = useState(false)
+  const warnTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const ref = useRef<HTMLDivElement>(null)
+  const [updateStatus, setUpdateStatus] = useState('')
+  const [updateError, setUpdateError] = useState('')
+  const [checkingUpdates, setCheckingUpdates] = useState(false)
 
   useEffect(() => {
     if (!open) {
-      setTimeout(() => setMenuView('main'), 200)
+      setTimeout(() => { setMenuView('main'); setCustomValue('') }, 200)
       return
     }
     function onClickOutside(e: MouseEvent) {
@@ -73,8 +95,48 @@ export function Settings() {
     return () => document.removeEventListener('mousedown', onClickOutside)
   }, [open])
 
+  useEffect(() => {
+    const updates = window.api?.updates
+    if (!updates) return
+    return updates.onEvent((payload) => {
+      if (payload.type === 'checking') {
+        setCheckingUpdates(true)
+        setUpdateError('')
+        setUpdateStatus('Checking…')
+      } else if (payload.type === 'available') {
+        setCheckingUpdates(false)
+        setUpdateStatus(`Update available: v${payload.version}`)
+      } else if (payload.type === 'not-available') {
+        setCheckingUpdates(false)
+        setUpdateStatus('You are up to date')
+      } else if (payload.type === 'download-progress') {
+        setCheckingUpdates(false)
+        setUpdateStatus(`Downloading… ${Math.round(payload.percent)}%`)
+      } else if (payload.type === 'downloaded') {
+        setCheckingUpdates(false)
+        setUpdateStatus(`Ready to install: v${payload.version}`)
+      } else if (payload.type === 'error') {
+        setCheckingUpdates(false)
+        setUpdateStatus('')
+        setUpdateError(payload.message)
+      }
+    })
+  }, [])
+
   function selectTheme(theme: Theme) {
     dispatch({ type: 'SET_THEME', payload: { theme } })
+  }
+
+  async function handleCheckUpdates() {
+    if (!window.api?.updates) return
+    setCheckingUpdates(true)
+    setUpdateStatus('Checking…')
+    try {
+      await window.api.updates.check()
+    } catch {
+      setCheckingUpdates(false)
+      setUpdateStatus('Update check failed')
+    }
   }
 
   const isDark = DARK_IDS.includes(state.theme)
@@ -83,7 +145,7 @@ export function Settings() {
 
   return (
     <>
-    <div ref={ref} className="relative">
+    <div ref={ref} className="relative app-no-drag">
       {/* Gear trigger — fills navbar height */}
       <button
         onClick={() => setOpen((o) => !o)}
@@ -102,10 +164,10 @@ export function Settings() {
       </button>
 
       {open && (
-        <div className={`absolute right-0 top-full mt-1.5 bg-panel border border-border rounded-xl shadow-2xl z-50 overflow-hidden animate-pop transition-all ${menuView === 'themes' ? 'w-44' : 'w-48'}`}>
+        <div className={`absolute right-0 top-full mt-1.5 bg-panel border border-border rounded-xl shadow-2xl z-50 overflow-hidden animate-pop transition-all app-no-drag ${menuView === 'themes' ? 'w-44' : menuView === 'purge' ? 'w-52' : 'w-[256px]'}`}>
           {menuView === 'main' ? (
             <>
-              <div className="px-2 pt-2 pb-1.5">
+              <div className="px-1 pt-2 pb-1.5">
                 <button
                   onClick={() => setMenuView('themes')}
                   className="w-full flex items-center justify-between px-2 py-1.5 text-xs text-fg hover:bg-fg/5 rounded-lg transition-colors group"
@@ -132,13 +194,34 @@ export function Settings() {
                 </button>
               </div>
 
+              {/* Empty trash after */}
+              <div className="px-1 pb-1.5">
+                <button
+                  onClick={() => setMenuView('purge')}
+                  className="w-full flex items-center justify-between px-2 py-1.5 text-xs text-fg-2 hover:text-fg hover:bg-fg/5 rounded-lg transition-colors group"
+                >
+                  <div className="flex items-center gap-2">
+                    <svg className="w-3.5 h-3.5 flex-shrink-0" style={{ color: iconColor }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    <span className="font-medium text-fg-2 group-hover:text-fg">Auto-empty trash</span>
+                  </div>
+                  <div className="flex items-center gap-1 text-muted group-hover:text-fg-2 transition-colors">
+                    <span>{state.trashAutoPurge === null ? 'Never' : formatPurgeDuration(state.trashAutoPurge)}</span>
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                </button>
+              </div>
+
               <div className="mx-3 my-0.5 border-t border-border" />
 
               {/* Tips toggle */}
-              <div className="flex items-center justify-between px-4 py-2.5">
+              <div className="group flex items-center justify-between px-3 py-2 mx-1 rounded-lg hover:bg-fg/5 transition-colors">
                 <div>
-                  <p className="text-xs text-fg-2 font-medium">Tips</p>
-                  <p className="text-[10px] text-muted mt-0.5">{state.tipsEnabled ? 'Showing tips' : 'Tips hidden'}</p>
+                  <p className="text-xs text-fg-2 font-medium group-hover:text-fg transition-colors">Tips</p>
+                  <p className="text-[10px] text-muted mt-0.5 group-hover:text-fg-2 transition-colors">{state.tipsEnabled ? 'Showing tips' : 'Tips hidden'}</p>
                 </div>
                 <button
                   role="switch"
@@ -155,10 +238,10 @@ export function Settings() {
               </div>
 
               {/* Delete confirm toggle */}
-              <div className="flex items-center justify-between px-4 py-2 pb-3">
+              <div className="group flex items-center justify-between px-3 py-2 mx-1 rounded-lg hover:bg-fg/5 transition-colors">
                 <div>
-                  <p className="text-xs text-fg-2 font-medium">Delete prompt</p>
-                  <p className="text-[10px] text-muted mt-0.5">{state.deleteConfirmEnabled ? 'Ask before deleting' : 'Delete directly'}</p>
+                  <p className="text-xs text-fg-2 font-medium group-hover:text-fg transition-colors">Delete prompt</p>
+                  <p className="text-[10px] text-muted mt-0.5 group-hover:text-fg-2 transition-colors">{state.deleteConfirmEnabled ? 'Ask before deleting' : 'Delete directly'}</p>
                 </div>
                 <button
                   role="switch"
@@ -174,30 +257,208 @@ export function Settings() {
                 </button>
               </div>
 
+              {/* Hold action toggle */}
+              <div className="group flex items-center justify-between px-3 py-2 mx-1 rounded-lg hover:bg-fg/5 transition-colors">
+                <div>
+                  <p className="text-xs text-fg-2 font-medium group-hover:text-fg transition-colors">Hold action</p>
+                  <p className="text-[10px] text-muted mt-0.5 group-hover:text-fg-2 transition-colors">
+                    {state.holdAction === 'copy' ? 'Hold to copy, click to edit' : 'Hold to edit, click to copy'}
+                  </p>
+                </div>
+                <button
+                  role="switch"
+                  aria-checked={state.holdAction === 'copy'}
+                  onClick={() => dispatch({ type: 'SET_HOLD_ACTION', payload: state.holdAction === 'copy' ? 'edit' : 'copy' })}
+                  className={`relative flex-shrink-0 w-9 h-5 rounded-full transition-colors duration-200 ${
+                    state.holdAction === 'copy' ? 'bg-accent' : 'bg-fg/20'
+                  }`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                    state.holdAction === 'copy' ? 'translate-x-4' : 'translate-x-0'
+                  }`} />
+                </button>
+              </div>
+
               <div className="mx-3 my-0.5 border-t border-border" />
 
-              {/* Tips + About section */}
-              <div className="px-2 pt-1.5 pb-2 space-y-0.5">
+              {/* Auto update toggle */}
+              <div className="group flex items-center justify-between px-3 py-2 mx-1 rounded-lg hover:bg-fg/5 transition-colors">
+                <div>
+                  <p className="text-xs text-fg-2 font-medium group-hover:text-fg transition-colors">Auto update checks</p>
+                  <p className="text-[10px] text-muted mt-0.5 group-hover:text-fg-2 transition-colors">
+                    {state.autoUpdateEnabled ? 'Check in the background' : 'Manual checks only'}
+                  </p>
+                </div>
                 <button
-                  onClick={() => { setOpen(false); setTipsOpen(true) }}
-                  className="w-full text-left pl-1 pr-2 py-1.5 text-xs text-fg-2 hover:text-fg hover:bg-fg/5 rounded-lg transition-colors flex items-center justify-between group"
+                  role="switch"
+                  aria-checked={state.autoUpdateEnabled}
+                  onClick={() => dispatch({ type: 'SET_AUTO_UPDATE_ENABLED', payload: !state.autoUpdateEnabled })}
+                  className={`relative flex-shrink-0 w-9 h-5 rounded-full transition-colors duration-200 ${
+                    state.autoUpdateEnabled ? 'bg-accent' : 'bg-fg/20'
+                  }`}
                 >
-                  <span>View Tips</span>
+                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                    state.autoUpdateEnabled ? 'translate-x-4' : 'translate-x-0'
+                  }`} />
+                </button>
+              </div>
+
+              {/* Manual update check */}
+              <div className="px-1 pb-0.5">
+                <button
+                  onClick={handleCheckUpdates}
+                  disabled={checkingUpdates || !window.api?.updates}
+                  className="w-full text-left flex items-center justify-between px-3 py-2 text-xs text-fg-2 hover:text-fg hover:bg-fg/5 rounded-lg transition-colors group disabled:opacity-45 disabled:cursor-not-allowed"
+                >
+                  <span>{checkingUpdates ? 'Checking…' : 'Check for updates now'}</span>
                   <svg className="w-3.5 h-3.5 opacity-50 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                   </svg>
                 </button>
+                {updateError && (
+                  <div className="mt-1 mx-0 px-3 py-2 rounded-lg bg-red-500/8 border border-red-500/20 flex items-start gap-2">
+                    <p className="text-[10px] text-red-400 break-words leading-relaxed flex-1 min-w-0">{updateError}</p>
+                    <button
+                      onClick={() => setUpdateError('')}
+                      className="flex-shrink-0 text-red-400/50 hover:text-red-400 transition-colors mt-px"
+                      aria-label="Dismiss"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
+                {updateStatus && !updateError && (
+                  <p className="text-[10px] text-muted px-3 pb-1">{updateStatus}</p>
+                )}
+              </div>
+
+              <div className="mx-3 my-0.5 border-t border-border" />
+
+              {/* Help + About section */}
+              <div className="px-1 pt-1.5 pb-2 space-y-0.5">
+                {!isOnHelp && (
+                  <button
+                    onClick={() => { setOpen(false); onOpenHelp?.() }}
+                    className="w-full text-left flex items-center justify-between px-3 py-2 text-xs text-fg-2 hover:text-fg hover:bg-fg/5 rounded-lg transition-colors group"
+                  >
+                    <span>Help Center</span>
+                    <svg className="w-3.5 h-3.5 opacity-50 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </button>
+                )}
                 <button
                   onClick={() => { setOpen(false); setAboutOpen(true); }}
-                  className="w-full text-left pl-1 pr-2 py-1.5 text-xs text-fg-2 hover:text-fg hover:bg-fg/5 rounded-lg transition-colors flex items-center justify-between group"
+                  className="w-full text-left flex items-center justify-between px-3 py-2 text-xs text-fg-2 hover:text-fg hover:bg-fg/5 rounded-lg transition-colors group"
                 >
-                  <span>About Snipper</span>
+                  <span>About</span>
                   <svg className="w-4 h-4 opacity-50 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </button>
               </div>
             </>
+          ) : menuView === 'purge' ? (
+            <div className="flex flex-col">
+              <div className="sticky top-0 bg-panel/80 backdrop-blur-md border-b border-border px-2 py-1.5 flex items-center gap-1 z-10">
+                <button onClick={() => setMenuView('main')} className="p-1 rounded-lg text-muted hover:text-fg hover:bg-fg/8 transition-colors">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+                <span className="text-xs font-semibold text-fg">Empty Trash After</span>
+              </div>
+
+              <div className="pt-1.5">
+                {PURGE_PRESETS.map(({ label, ms }) => (
+                  <button
+                    key={label}
+                    onClick={() => { dispatch({ type: 'SET_TRASH_AUTO_PURGE', payload: ms }); setMenuView('main') }}
+                    className={`w-full flex items-center gap-2.5 px-3 py-1.5 text-xs transition-colors ${
+                      state.trashAutoPurge === ms ? 'text-accent bg-accent/8 font-medium' : 'text-fg-2 hover:text-fg hover:bg-fg/5'
+                    }`}
+                  >
+                    {label}
+                    {state.trashAutoPurge === ms && <ActiveIcon />}
+                  </button>
+                ))}
+              </div>
+
+              <div className="mx-3 my-1.5 border-t border-border" />
+
+              <div className="px-3 pb-3">
+                <p className="text-[9px] font-semibold tracking-widest uppercase text-muted/60 mb-2 select-none">Custom</p>
+                <div className="flex gap-1.5">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={customValue}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      const max = customUnit === 'min' ? 60 : customUnit === 'hr' ? 24 : Infinity
+                      if (Number(val) > max) {
+                        if (warnTimerRef.current) clearTimeout(warnTimerRef.current)
+                        setWarnFlash(true)
+                        warnTimerRef.current = setTimeout(() => setWarnFlash(false), 1500)
+                        return
+                      }
+                      setWarnFlash(false)
+                      setCustomValue(val)
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        const n = Number(customValue)
+                        if (!n || n <= 0) return
+                        const unitMs = customUnit === 'min' ? 60_000 : customUnit === 'hr' ? 3_600_000 : 86_400_000
+                        dispatch({ type: 'SET_TRASH_AUTO_PURGE', payload: Math.round(n * unitMs) })
+                        setCustomValue('')
+                        setMenuView('main')
+                      }
+                    }}
+                    placeholder="30"
+                    className="w-14 bg-surface border border-border rounded-md px-2 py-1 text-xs text-fg placeholder-muted focus:outline-none focus:border-accent transition-colors"
+                  />
+                  <select
+                    value={customUnit}
+                    onChange={(e) => {
+                      const unit = e.target.value as 'min' | 'hr' | 'day'
+                      if (unit === 'hr' && Number(customValue) > 24) setCustomValue('24')
+                      if (unit === 'min' && Number(customValue) > 60) setCustomValue('60')
+                      setWarnFlash(false)
+                      setCustomUnit(unit)
+                    }}
+                    className="flex-1 bg-surface border border-border rounded-md px-1.5 py-1 text-xs text-fg focus:outline-none focus:border-accent transition-colors"
+                  >
+                    <option value="min">minutes</option>
+                    <option value="hr">hours</option>
+                    <option value="day">days</option>
+                  </select>
+                </div>
+                {(customUnit === 'hr' || customUnit === 'min') && (
+                  <p className={`text-[10px] mt-1.5 transition-colors duration-300 ${
+                    warnFlash ? 'text-orange-400 font-medium' : 'text-muted'
+                  }`}>
+                    {customUnit === 'min' ? 'Max 60 min — use hours for longer.' : 'Max 24 hrs — use days for longer.'}
+                  </p>
+                )}
+                <button
+                  onClick={() => {
+                    const n = Number(customValue)
+                    if (!n || n <= 0) return
+                    const unitMs = customUnit === 'min' ? 60_000 : customUnit === 'hr' ? 3_600_000 : 86_400_000
+                    dispatch({ type: 'SET_TRASH_AUTO_PURGE', payload: Math.round(n * unitMs) })
+                    setCustomValue('')
+                    setMenuView('main')
+                  }}
+                  disabled={!customValue || Number(customValue) <= 0}
+                  className="mt-2 w-full py-1 text-xs font-semibold text-white bg-accent hover:bg-accent/90 disabled:opacity-40 disabled:cursor-not-allowed rounded-md transition-colors"
+                >
+                  Set
+                </button>
+              </div>
+            </div>
           ) : (
             <div className="flex flex-col max-h-[60vh] overflow-y-auto">
               <div className="sticky top-0 bg-panel/80 backdrop-blur-md border-b border-border px-2 py-1.5 flex items-center gap-1 z-10">
@@ -247,7 +508,6 @@ export function Settings() {
     </div>
 
     <AboutModal open={aboutOpen} onClose={() => setAboutOpen(false)} />
-    <TipsModal open={tipsOpen} onClose={() => setTipsOpen(false)} />
-    </>
+</>
   )
 }

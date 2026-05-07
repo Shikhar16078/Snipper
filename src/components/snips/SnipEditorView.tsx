@@ -1,12 +1,18 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import type { Snip } from '../../types'
 import { useApp } from '../../store/AppContext'
+import { generateId } from '../../utils/id'
 import { Input } from '../ui/Input'
 import { FolderSelect } from '../ui/FolderSelect'
 import { Button } from '../ui/Button'
 import { extractLinks, getDefaultLinkTitle } from '../../utils/links'
 
 type EditorMode = 'create' | 'edit'
+
+export interface SnipEditorHandle {
+  isDirty: boolean
+  save: () => void
+}
 
 interface SnipEditorViewProps {
   mode: EditorMode
@@ -63,22 +69,25 @@ function clampRightPanelWidth(width: number, viewportWidth: number): number {
   return Math.min(max, Math.max(RIGHT_PANEL_MIN, width))
 }
 
-export function SnipEditorView({
+export const SnipEditorView = forwardRef<SnipEditorHandle, SnipEditorViewProps>(function SnipEditorView({
   mode,
   snip,
   initialFolderId = '',
   collapsed,
   onToggleSidebar,
   onClose,
-}: SnipEditorViewProps) {
+}, ref) {
   const { state, dispatch } = useApp()
-  const isEditMode = mode === 'edit' && !!snip
-  const currentSnip = snip
 
-  const [name, setName] = useState(() => isEditMode && snip ? snip.name : '')
-  const [body, setBody] = useState(() => isEditMode && snip ? snip.body : '')
-  const [folderId, setFolderId] = useState(() => isEditMode && snip ? snip.folderId : initialFolderId)
-  const [linkTitles, setLinkTitles] = useState<Record<string, string>>(() => isEditMode && snip ? (snip.linkTitles ?? {}) : {})
+  const [name, setName] = useState(() => mode === 'edit' && snip ? snip.name : '')
+  const [body, setBody] = useState(() => mode === 'edit' && snip ? snip.body : '')
+  const [folderId, setFolderId] = useState(() => mode === 'edit' && snip ? snip.folderId : initialFolderId)
+  const [linkTitles, setLinkTitles] = useState<Record<string, string>>(() => mode === 'edit' && snip ? (snip.linkTitles ?? {}) : {})
+  const [internalEditSnip, setInternalEditSnip] = useState<Snip | null>(null)
+
+  const effectiveSnip = snip ?? internalEditSnip
+  const isEditMode = !!effectiveSnip
+  const currentSnip = effectiveSnip
   const [showDiscardDialog, setShowDiscardDialog] = useState(false)
   const [rightPanelOpen, setRightPanelOpen] = useState(true)
   const [rightPanelWidth, setRightPanelWidth] = useState(() =>
@@ -140,22 +149,12 @@ export function SnipEditorView({
     window.addEventListener('mouseup', onUp)
   }, [rightPanelWidth])
 
-  const originalCanonical: CanonicalDraft = useMemo(() => {
-    if (isEditMode && currentSnip) {
-      return {
-        name: currentSnip.name.trim(),
-        body: currentSnip.body,
-        folderId: currentSnip.folderId,
-        linkTitles: canonicalizeLinkTitles(currentSnip.body, currentSnip.linkTitles),
-      }
-    }
-    return {
-      name: '',
-      body: '',
-      folderId: initialFolderId,
-      linkTitles: undefined,
-    }
-  }, [isEditMode, currentSnip, initialFolderId])
+  const [savedCanonical, setSavedCanonical] = useState<CanonicalDraft>(() =>
+    mode === 'edit' && snip
+      ? { name: snip.name.trim(), body: snip.body, folderId: snip.folderId,
+          linkTitles: canonicalizeLinkTitles(snip.body, snip.linkTitles) }
+      : { name: '', body: '', folderId: initialFolderId, linkTitles: undefined }
+  )
 
   const currentCanonical: CanonicalDraft = useMemo(() => {
     return {
@@ -167,12 +166,19 @@ export function SnipEditorView({
   }, [name, body, folderId, linkTitles])
 
   const isDirty =
-    originalCanonical.name !== currentCanonical.name ||
-    originalCanonical.body !== currentCanonical.body ||
-    originalCanonical.folderId !== currentCanonical.folderId ||
-    linkTitleKey(originalCanonical.linkTitles) !== linkTitleKey(currentCanonical.linkTitles)
+    savedCanonical.name !== currentCanonical.name ||
+    savedCanonical.body !== currentCanonical.body ||
+    savedCanonical.folderId !== currentCanonical.folderId ||
+    linkTitleKey(savedCanonical.linkTitles) !== linkTitleKey(currentCanonical.linkTitles)
 
   const canSave = currentCanonical.name.length > 0 && currentCanonical.body.trim().length > 0
+
+  const latestHandleSaveRef = useRef<() => void>(() => {})
+
+  useImperativeHandle(ref, () => ({
+    isDirty,
+    save: () => latestHandleSaveRef.current(),
+  }))
 
   function handleClose() {
     if (isDirty) { setShowDiscardDialog(true); return }
@@ -192,19 +198,23 @@ export function SnipEditorView({
           linkTitles: currentCanonical.linkTitles,
         },
       })
+      setSavedCanonical(currentCanonical)
     } else {
+      const id = generateId()
+      const now = Date.now()
       dispatch({
         type: 'ADD_SNIP',
-        payload: {
-          name: currentCanonical.name,
-          body: currentCanonical.body,
-          folderId: currentCanonical.folderId,
-          linkTitles: currentCanonical.linkTitles,
-        },
+        payload: { id, name: currentCanonical.name, body: currentCanonical.body,
+          folderId: currentCanonical.folderId, linkTitles: currentCanonical.linkTitles },
       })
+      const newSnip: Snip = { id, name: currentCanonical.name, body: currentCanonical.body,
+        folderId: currentCanonical.folderId, linkTitles: currentCanonical.linkTitles,
+        createdAt: now, updatedAt: now }
+      setInternalEditSnip(newSnip)
+      setSavedCanonical(currentCanonical)
     }
-    onClose()
   }
+  latestHandleSaveRef.current = handleSave
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -369,7 +379,7 @@ export function SnipEditorView({
               )}
               <div className="flex gap-2 pt-1">
                 <Button className="flex-1" onClick={handleSave} disabled={!isDirty || !canSave}>
-                  {isEditMode ? 'Save' : 'Create'}
+                  Save
                 </Button>
                 <Button variant="ghost" className="flex-1" onClick={handleClose}>Cancel</Button>
               </div>
@@ -415,4 +425,4 @@ export function SnipEditorView({
       </div>
     </div>
   )
-}
+})

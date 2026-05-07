@@ -16,6 +16,7 @@ TypeScript check (renderer only): `npx tsc --noEmit`
 
 - **Never push to remote** unless explicitly told to. Commit locally as needed, but `git push` only on direct instruction.
 - **Never commit** without explicit user approval.
+- **"Commit" always means local commit only** — never push unless the user says "push".
 
 ## Architecture
 
@@ -58,6 +59,7 @@ interface AppState {
   tipsEnabled: boolean
   isEditMode: boolean              // sidebar edit/organize mode
   deleteConfirmEnabled: boolean    // show confirm dialog before deleting
+  holdAction: 'edit' | 'copy'     // what holding a snip card does
 }
 ```
 
@@ -69,7 +71,7 @@ interface AppState {
 ADD_FOLDER / RENAME_FOLDER / DELETE_FOLDER / REORDER_FOLDER / SELECT_FOLDER
 ADD_SNIP / EDIT_SNIP / DELETE_SNIP / MOVE_SNIP
 SET_VIEW_MODE / SET_THEME / SET_ALL_SNIPS_LABEL
-SET_TIPS_ENABLED / SET_DELETE_CONFIRM_ENABLED / TOGGLE_EDIT_MODE
+SET_TIPS_ENABLED / SET_DELETE_CONFIRM_ENABLED / SET_HOLD_ACTION / TOGGLE_EDIT_MODE
 ADD_DIVIDER / MOVE_DIVIDER / REMOVE_DIVIDER
 RESTORE_TRASH_ITEM / RESTORE_ALL_TRASH / PERMANENTLY_DELETE_TRASH_ITEM / EMPTY_TRASH
 LOAD_STATE
@@ -124,7 +126,9 @@ Sidebar header and all main-panel navbars are `h-[40px]` on Mac. Sidebar header 
 3. **`TrashView`** — when `trashOpen === true`
 4. **`SnipGrid`** — default
 
-The `N` shortcut sets `createOpen = true`. Clicking Edit on a snip card sets `editTarget`. Clicking trash in the sidebar sets `trashOpen`. Navigating to any folder via sidebar always closes trash (via `useEffect` on `selectedFolderId`, and via `onNavigate` callback threaded through FolderItem).
+The `N` shortcut sets `createOpen = true`. Clicking Edit on a snip card sets `editTarget`. Clicking trash in the sidebar sets `trashOpen`. Navigating to any folder via sidebar always closes trash (via `useEffect` on `selectedFolderId`).
+
+**Navigation guard:** All folder and trash clicks go through gating functions in App.tsx (`requestSelectFolder`, `toggleTrash`). If the editor is open with unsaved changes (`editorRef.current?.isDirty`), a `pendingNav` state is set and a dialog appears (Save & Leave / Keep Editing / Discard) instead of navigating. If the editor is open but clean, navigation closes the editor and proceeds immediately. `editorRef` is a `useRef<SnipEditorHandle>` attached to whichever `SnipEditorView` is active.
 
 ## Snip Editor View (`SnipEditorView`)
 
@@ -138,9 +142,15 @@ The `N` shortcut sets `createOpen = true`. Clicking Edit on a snip card sets `ed
 
 **Link detection:** `extractLinks(body)` (from `src/utils/links.ts`) scans body for URLs in real time. Each detected link can have a custom title set in the side panel. Titles are stored in `snip.linkTitles`.
 
-**Dirty tracking:** `isDirty` compares canonical versions of (name, body, folderId, linkTitles). Save is disabled when not dirty or missing name/body. Closing with unsaved changes shows `window.confirm`.
+**Save behaviour:** The Save button saves in place — it does **not** close the editor. In create mode, the first save transitions the editor to edit mode for the newly created snip in-place (via `internalEditSnip` state; no remount). Subsequent saves dispatch `EDIT_SNIP`. Cancel / back arrow / Escape close the editor (with dirty check).
 
-**Shortcuts:** `Cmd/Ctrl+S` saves, `Escape` closes (with dirty check).
+**Dirty tracking:** `isDirty` compares `currentCanonical` against a `savedCanonical` state (initialized from the snip prop, updated on each save). This avoids stale comparisons since the snip prop never updates after save. Save button is disabled when `!isDirty || !canSave`.
+
+**`SnipEditorHandle`:** The component is a `forwardRef` that exposes `{ isDirty: boolean, save: () => void }` via `useImperativeHandle`. App.tsx uses this ref for the navigation guard.
+
+**Discard dialog:** Shown as an in-editor overlay when closing with unsaved changes. Buttons: "Keep editing" / "Discard".
+
+**Shortcuts:** `Cmd/Ctrl+S` saves (in place), `Escape` closes (with dirty check).
 
 ## Edit Mode (`isEditMode`)
 
@@ -200,13 +210,19 @@ Soft-delete pattern: items moved to `state.trash` on delete rather than permanen
 
 ## Snip Card Interactions
 
-- **Click** — copies body to clipboard; shows "Copied!" overlay for 1.5s with blur effect on content
+Click and hold behaviour is controlled by `state.holdAction`:
+
+| `holdAction` | Click | Hold (200ms) |
+| --- | --- | --- |
+| `'edit'` (default) | Copy to clipboard | Open editor |
+| `'copy'` | Open editor | Copy to clipboard |
+
 - **Right-click** — opens the same Edit / Move / Delete context menu as the ⋮ kebab button
 - **Drag** — moves snip to a folder (custom pill ghost image)
 - **⋮ button** — visible on hover; Edit opens `SnipEditorView`, Move opens searchable folder submenu
 - **Visit button** — shown when entire body is a single valid http/https URL; opens in default browser
 
-Copy animation: overlay (`opacity` + `scale`) and content blur (`filter` + `opacity`) both transition 500ms.
+**Hold animation:** A radial fill (`clipPath: circle(...)`) and progressive blur/fade animate over 200ms via `requestAnimationFrame`. `holdProgress` is reset to 0 when the hold fires (so the fill clears before the copy/edit overlay appears). Copy animation: "Copied!" overlay (`opacity` + `scale`) and content blur (`filter` + `opacity`) both transition 500ms. Content transition is active only when `holdProgress === 0` so the RAF-driven hold animation stays frame-accurate.
 
 ## Link Actions on Snip Cards
 
@@ -221,6 +237,7 @@ When a snip body contains one or more URLs, each URL is rendered as an action bu
 - Theme row (shows current theme label, chevron → opens themes submenu)
 - Tips toggle
 - Delete prompt toggle
+- Hold action toggle (`'edit'` = hold to edit / `'copy'` = hold to copy)
 - About entry (opens `AboutModal`)
 
 **Themes view:**
@@ -242,7 +259,9 @@ When a snip body contains one or more URLs, each URL is rendered as an action bu
 
 ## Sidebar Folder Search
 
-Single text input in sidebar nav. Typing filters all folders (including nested) in real time using `flattenFolders()`. In search mode: shows flat list with depth indentation, clicking a result selects it, clears search, and closes trash if open. The `+` button inside the field (appears when text is present) creates a new root folder.
+Single text input in sidebar nav. Typing filters all folders (including nested) in real time using `flattenFolders()`. In search mode: shows flat list with depth indentation, clicking a result selects it and clears search. The `+` button inside the field (appears when text is present) creates a new root folder.
+
+**Folder selection prop chain:** All folder and "All Snips" clicks go through `onSelectFolder: (id: string | null) => void` passed from App.tsx → Sidebar → FolderItem (via `onSelect` prop, threaded recursively to children). This lets App.tsx gate navigation when the editor is dirty. When `onSelect` is provided, FolderItem skips calling `onNavigate` (App.tsx handles side effects such as closing trash).
 
 ## Key Utilities
 

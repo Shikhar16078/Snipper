@@ -11,6 +11,7 @@ interface SnipGridProps {
   onEdit: (snip: Snip) => void
   collapsed: boolean
   onToggleSidebar: () => void
+  onOpenHelp: () => void
 }
 
 function getAllDescendantIds(folderId: string, folders: Folder[]): string[] {
@@ -18,7 +19,7 @@ function getAllDescendantIds(folderId: string, folders: Folder[]): string[] {
   return children.flatMap((c) => [c.id, ...getAllDescendantIds(c.id, folders)])
 }
 
-export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar }: SnipGridProps) {
+export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp }: SnipGridProps) {
   const { state, dispatch } = useApp()
   const [search, setSearch] = useState('')
   const [expandAll, setExpandAll] = useState(false)
@@ -191,7 +192,7 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar }: SnipGrid
         </button>
 
         {/* Settings */}
-        <Settings />
+        <Settings onOpenHelp={onOpenHelp} />
       </div>
 
       {/* ── Cards ── */}
