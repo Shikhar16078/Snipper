@@ -1,5 +1,17 @@
 [
   {
+    "version": "1.2.0",
+    "date": "May 6, 2026",
+    "changes": [
+      "Save no longer closes the editor — clicking Save or Create stays in place",
+      "Creating a snip now transitions to edit mode in-place after the first save, with no jump or reload",
+      "Navigation guard: navigating away with unsaved changes now prompts to Save & Leave, Keep Editing, or Discard",
+      "New Settings toggle: choose whether holding a snip card edits or copies it",
+      "Keyboard shortcuts on card hover: press E to edit, C to copy, or D to delete",
+      "Fixed copy animation: hold progress now resets correctly and content fade-out is smoother"
+    ]
+  },
+  {
     "version": "1.1.0",
     "date": "May 4, 2026",
     "changes": [

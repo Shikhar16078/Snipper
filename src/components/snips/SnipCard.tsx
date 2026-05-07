@@ -28,6 +28,7 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
   const [moveSearch, setMoveSearch] = useState('')
   const [isDragging, setIsDragging] = useState(false)
   const [holdProgress, setHoldProgress] = useState(0)
+  const [isHovered, setIsHovered] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const kebabRef = useRef<HTMLButtonElement>(null)
   const linksRef = useRef<HTMLDivElement>(null)
@@ -39,6 +40,25 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
   const links = extractLinks(snip.body)
 
   useEffect(() => () => { if (holdRafRef.current) cancelAnimationFrame(holdRafRef.current) }, [])
+
+  useEffect(() => {
+    if (!isHovered) return
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.metaKey || e.ctrlKey || e.altKey) return
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      if (menuOpen || deleteConfirmOpen) return
+      const key = e.key.toLowerCase()
+      if (key === 'e') { e.preventDefault(); onEdit(snip) }
+      else if (key === 'c') { e.preventDefault(); copy(snip.body) }
+      else if (key === 'd') {
+        e.preventDefault()
+        if (state.deleteConfirmEnabled) setDeleteConfirmOpen(true)
+        else dispatch({ type: 'DELETE_SNIP', payload: { id: snip.id } })
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [isHovered, menuOpen, deleteConfirmOpen, snip, state.deleteConfirmEnabled, onEdit, copy, dispatch])
 
   useEffect(() => {
     if (!menuOpen) return
@@ -164,6 +184,8 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
       draggable
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       onMouseDown={startHold}
       onClick={handleCardClick}
       onContextMenu={(e) => { e.preventDefault(); openMenu(e.clientX, e.clientY) }}
