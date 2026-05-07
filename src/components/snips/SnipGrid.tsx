@@ -212,7 +212,10 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
             }
           }}
         >
-          <div className={state.viewMode === 'grid' ? 'grid grid-cols-2 xl:grid-cols-3 gap-3' : 'flex flex-col gap-2'}>
+          <div
+            className={state.viewMode === 'grid' ? 'grid gap-3' : 'flex flex-col gap-2'}
+            style={state.viewMode === 'grid' ? { gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' } : undefined}
+          >
             {visibleSnips.map((snip) => (
               <SnipCard key={snip.id} snip={snip} onEdit={onEdit} expanded={expandAll} />
             ))}
