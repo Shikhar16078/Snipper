@@ -358,3 +358,18 @@ html.dark.dark-nebula {
 .view-enter {
   animation: view-enter 0.32s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
+
+/* Help Center category content swap */
+@keyframes help-content-enter {
+  from {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+.help-content-enter {
+  animation: help-content-enter 0.18s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}

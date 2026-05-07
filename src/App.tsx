@@ -6,6 +6,7 @@ import { Sidebar } from './components/sidebar/Sidebar'
 import { SnipGrid } from './components/snips/SnipGrid'
 import { SnipEditorView, type SnipEditorHandle } from './components/snips/SnipEditorView'
 import { TrashView } from './components/trash/TrashView'
+import { HelpView } from './components/help/HelpView'
 
 type PendingNav = { type: 'folder'; id: string | null } | { type: 'trash' }
 
@@ -20,6 +21,7 @@ function AppShell() {
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT)
   const [collapsed, setCollapsed] = useState(false)
   const [trashOpen, setTrashOpen] = useState(false)
+  const [helpOpen, setHelpOpen] = useState(false)
   const [pendingNav, setPendingNav] = useState<PendingNav | null>(null)
   const editorRef = useRef<SnipEditorHandle>(null)
   const widthBeforeCollapse = useRef(SIDEBAR_DEFAULT)
@@ -107,6 +109,7 @@ function AppShell() {
       ) {
         e.preventDefault()
         setTrashOpen(false)
+        setHelpOpen(false)
         setEditTarget(null)
         setCreateOpen(true)
       }
@@ -145,9 +148,10 @@ function AppShell() {
     }
   }
 
-  // Close trash whenever the user navigates to a folder
+  // Close trash and help whenever the user navigates to a folder
   useEffect(() => {
     setTrashOpen(false)
+    setHelpOpen(false)
   }, [state.selectedFolderId])
 
   const isEditorOpen = createOpen || editTarget !== null
@@ -163,6 +167,7 @@ function AppShell() {
     }
     dispatch({ type: 'SELECT_FOLDER', payload: { id } })
     setTrashOpen(false)
+    setHelpOpen(false)
   }
 
   function toggleTrash() {
@@ -193,11 +198,13 @@ function AppShell() {
   function openEditor(snip: Snip) {
     setCreateOpen(false)
     setTrashOpen(false)
+    setHelpOpen(false)
     setEditTarget(snip)
   }
 
   function openCreateEditor() {
     setTrashOpen(false)
+    setHelpOpen(false)
     setEditTarget(null)
     setCreateOpen(true)
   }
@@ -259,7 +266,7 @@ function AppShell() {
       {/* Main panel */}
       <div className="flex-1 overflow-hidden relative">
         <div
-          key={createOpen ? `create-${state.selectedFolderId ?? 'all'}` : editTarget ? `edit-${editTarget.id}` : trashOpen ? 'trash' : 'grid'}
+          key={createOpen ? `create-${state.selectedFolderId ?? 'all'}` : editTarget ? `edit-${editTarget.id}` : trashOpen ? 'trash' : helpOpen ? 'help' : 'grid'}
           className="h-full view-enter"
         >
           {createOpen ? (
@@ -281,9 +288,11 @@ function AppShell() {
               onClose={() => setEditTarget(null)}
             />
           ) : trashOpen ? (
-            <TrashView collapsed={collapsed} onToggleSidebar={toggleCollapse} />
+            <TrashView collapsed={collapsed} onToggleSidebar={toggleCollapse} onOpenHelp={() => setHelpOpen(true)} />
+          ) : helpOpen ? (
+            <HelpView collapsed={collapsed} onToggleSidebar={toggleCollapse} onOpenHelp={() => setHelpOpen(true)} onGoHome={() => setHelpOpen(false)} />
           ) : (
-            <SnipGrid onAdd={openCreateEditor} onEdit={openEditor} collapsed={collapsed} onToggleSidebar={toggleCollapse} />
+            <SnipGrid onAdd={openCreateEditor} onEdit={openEditor} collapsed={collapsed} onToggleSidebar={toggleCollapse} onOpenHelp={() => setHelpOpen(true)} />
           )}
         </div>
       </div>

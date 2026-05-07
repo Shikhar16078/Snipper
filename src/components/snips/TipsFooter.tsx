@@ -1,27 +1,59 @@
 import { useState, useEffect } from 'react'
 
-export const TIPS = [
-  'Click any card to instantly copy its content to clipboard.',
-  'Click and hold a card to open it in the editor — or swap to hold-to-copy in Settings.',
-  'Hover a card and press E to edit, C to copy, or D to delete.',
-  'Press N anywhere to quickly create a new snip.',
-  'Use Cmd+F or Ctrl+F to search snips by name or content.',
-  'Right-click any card or use the ⋮ button to edit, move, or delete it.',
-  'Press Cmd+S (or Ctrl+S) in the editor to save without closing it.',
-  'When a snip body contains a URL, a Visit button appears to open it in your browser.',
-  'All Snips is a space of its own — snips added there don\'t need to live inside any folder.',
-  'Drag a card onto a sidebar folder to move it.',
-  'Drag any snip onto the Trash icon in the sidebar to delete it quickly.',
-  'Toggle between grid and list view with the view buttons.',
-  'Click the expand icon in the toolbar to reveal all card content at once.',
-  'Hover a folder and click + to create a nested subfolder.',
-  'Rename any folder by hovering it and clicking the pencil icon.',
-  'In Edit Mode, drag folders to reorder or nest them within other folders.',
-  'In Edit Mode, add separators between folders to organize your sidebar.',
-  'Drag the sidebar divider to resize it, or click the panel icon to collapse.',
-  'Press Escape to clear the search bar.',
-  'Hover "All Snips" in the sidebar to rename that view label.',
+export interface TipCategory {
+  title: string
+  description: string
+  tips: string[]
+}
+
+export const TIP_CATEGORIES: TipCategory[] = [
+  {
+    title: 'Getting Started',
+    description: 'The essentials to get up and running with Snipper.',
+    tips: [
+      'Click any card to instantly copy its content to clipboard.',
+      'Press N anywhere to quickly create a new snip.',
+      'Toggle between grid and list view with the view buttons.',
+      'Click the expand icon in the toolbar to reveal all card content at once.',
+    ],
+  },
+  {
+    title: 'Working with Snips',
+    description: 'Copy, edit, move, and interact with your snippets.',
+    tips: [
+      'Click and hold a card to open it in the editor — or swap to hold-to-copy in Settings.',
+      'Hover a card and press E to edit, C to copy, or D to delete.',
+      'Right-click any card or use the ⋮ button to edit, move, or delete it.',
+      'Drag a card onto a sidebar folder to move it.',
+      'Drag any snip onto the Trash icon in the sidebar to delete it quickly.',
+      'When a snip body contains a URL, a Visit button appears to open it in your browser.',
+      'Press Cmd+S (or Ctrl+S) in the editor to save without closing it.',
+    ],
+  },
+  {
+    title: 'Folders & Sidebar',
+    description: 'Organize your snips with folders, nesting, and separators.',
+    tips: [
+      'All Snips is a space of its own — snips added there don\'t need to live inside any folder.',
+      'Hover a folder and click + to create a nested subfolder.',
+      'Rename any folder by hovering it and clicking the pencil icon.',
+      'In Edit Mode, drag folders to reorder or nest them within other folders.',
+      'In Edit Mode, add separators between folders to organize your sidebar.',
+      'Drag the sidebar divider to resize it, or click the panel icon to collapse.',
+    ],
+  },
+  {
+    title: 'Search & Navigation',
+    description: 'Find snips fast and customize your workspace.',
+    tips: [
+      'Use Cmd+F or Ctrl+F to search snips by name or content.',
+      'Press Escape to clear the search bar.',
+      'Hover "All Snips" in the sidebar to rename that view label.',
+    ],
+  },
 ]
+
+export const TIPS = TIP_CATEGORIES.flatMap((c) => c.tips)
 
 interface TipsFooterProps {
   visible: boolean
