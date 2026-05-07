@@ -30,8 +30,18 @@ interface HelpViewProps {
 
 export function HelpView({ collapsed, onToggleSidebar, onOpenHelp, onGoHome }: HelpViewProps) {
   const [selected, setSelected] = useState(0)
+  const [navDirection, setNavDirection] = useState<'forward' | 'backward'>('forward')
   const isMac = (window as any).api?.platform === 'darwin'
   const cat = TIP_CATEGORIES[selected]
+  const total = TIP_CATEGORIES.length
+  const prevIndex = (selected - 1 + total) % total
+  const nextIndex = (selected + 1) % total
+
+  function navigateTo(index: number, direction?: 'forward' | 'backward') {
+    if (index === selected) return
+    setNavDirection(direction ?? (index > selected ? 'forward' : 'backward'))
+    setSelected(index)
+  }
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-surface">
@@ -83,7 +93,7 @@ export function HelpView({ collapsed, onToggleSidebar, onOpenHelp, onGoHome }: H
           {TIP_CATEGORIES.map((c, i) => (
             <button
               key={c.title}
-              onClick={() => setSelected(i)}
+              onClick={() => navigateTo(i)}
               className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-left transition-colors ${
                 selected === i
                   ? 'text-accent bg-accent/8 font-semibold border-r-2 border-accent'
@@ -103,21 +113,24 @@ export function HelpView({ collapsed, onToggleSidebar, onOpenHelp, onGoHome }: H
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto">
-          <div key={selected} className="help-content-enter max-w-2xl mx-auto px-10 py-8">
+          <div key={selected} className="max-w-2xl mx-auto px-10 py-8 min-h-full flex flex-col">
 
             {/* Section header */}
-            <div className="flex items-center gap-3 mb-1">
+            <div className="help-content-stagger flex items-center gap-3 mb-1" style={{ animationDelay: '40ms' }}>
               <span className="text-accent">{CATEGORY_ICONS[selected]}</span>
               <h1 className="text-base font-bold text-fg">{cat.title}</h1>
             </div>
-            <p className="text-xs text-muted mb-6 pl-7">{cat.description}</p>
+            <p className="help-content-stagger text-xs text-muted mb-6 pl-7" style={{ animationDelay: '100ms' }}>
+              {cat.description}
+            </p>
 
             {/* Tips */}
             <div className="space-y-2">
               {cat.tips.map((tip, i) => (
                 <div
                   key={i}
-                  className="group flex items-start gap-3 p-3.5 rounded-xl border border-border bg-panel hover:border-accent/25 hover:bg-accent/5 hover:shadow-sm transition-all"
+                  className="help-content-stagger group flex items-start gap-3 p-3.5 rounded-xl border border-border bg-panel hover:border-accent/25 hover:bg-accent/5 hover:shadow-sm transition-all"
+                  style={{ animationDelay: `${170 + i * 55}ms` }}
                 >
                   <svg className="w-3.5 h-3.5 text-accent flex-shrink-0 mt-0.5 transition-all group-hover:drop-shadow-[0_0_5px_rgba(var(--accent),0.7)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -130,26 +143,28 @@ export function HelpView({ collapsed, onToggleSidebar, onOpenHelp, onGoHome }: H
             </div>
 
             {/* Footer nav */}
-            <div className="flex items-center justify-between mt-8 pt-6 border-t border-border">
+            <div className="flex items-center justify-between mt-auto pt-6 border-t border-border">
               <button
-                onClick={() => setSelected((s) => Math.max(0, s - 1))}
-                disabled={selected === 0}
-                className="flex items-center gap-1.5 text-xs text-muted hover:text-fg disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                onClick={() => navigateTo(prevIndex, 'backward')}
+                className={`help-footer-nav help-footer-nav-prev flex items-center gap-1.5 text-xs text-muted hover:text-fg transition-colors ${
+                  navDirection === 'backward' ? 'help-footer-nav-active' : ''
+                }`}
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
-                {selected > 0 ? TIP_CATEGORIES[selected - 1].title : 'Previous'}
+                {TIP_CATEGORIES[prevIndex].title}
               </button>
-              <span className="text-[10px] text-muted tabular-nums">
+              <span className="help-footer-index text-[10px] text-muted tabular-nums">
                 {selected + 1} / {TIP_CATEGORIES.length}
               </span>
               <button
-                onClick={() => setSelected((s) => Math.min(TIP_CATEGORIES.length - 1, s + 1))}
-                disabled={selected === TIP_CATEGORIES.length - 1}
-                className="flex items-center gap-1.5 text-xs text-muted hover:text-fg disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                onClick={() => navigateTo(nextIndex, 'forward')}
+                className={`help-footer-nav help-footer-nav-next flex items-center gap-1.5 text-xs text-muted hover:text-fg transition-colors ${
+                  navDirection === 'forward' ? 'help-footer-nav-active' : ''
+                }`}
               >
-                {selected < TIP_CATEGORIES.length - 1 ? TIP_CATEGORIES[selected + 1].title : 'Next'}
+                {TIP_CATEGORIES[nextIndex].title}
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
