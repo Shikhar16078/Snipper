@@ -6,21 +6,20 @@ interface FolderSelectProps {
   folders: Folder[]
   value: string
   onChange: (id: string) => void
-  allSnipsLabel?: string
 }
 
-export function FolderSelect({ folders, value, onChange, allSnipsLabel = 'All Snips' }: FolderSelectProps) {
+export function FolderSelect({ folders, value, onChange }: FolderSelectProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [search, setSearch] = useState('')
   const containerRef = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
 
   const selectedFolder = folders.find((f) => f.id === value)
-  const isAllSnips = value === ''
+  const isUnfiled = value === ''
   const q = search.trim().toLowerCase()
   const flat = flattenFolders(folders)
   const filtered = q ? flat.filter(({ folder }) => folder.name.toLowerCase().includes(q)) : flat
-  const showAllSnipsOption = !q || allSnipsLabel.toLowerCase().includes(q)
+  const showUnfiledOption = !q || 'unfiled'.includes(q)
 
   useEffect(() => {
     if (!isOpen) { setSearch(''); return }
@@ -47,9 +46,9 @@ export function FolderSelect({ folders, value, onChange, allSnipsLabel = 'All Sn
           isOpen ? 'border-accent' : 'border-border hover:border-fg/30'
         }`}
       >
-        {isAllSnips ? (
+        {isUnfiled ? (
           <svg className="w-3.5 h-3.5 text-muted flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
           </svg>
         ) : (
           <svg className="w-3.5 h-3.5 text-muted flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -57,7 +56,7 @@ export function FolderSelect({ folders, value, onChange, allSnipsLabel = 'All Sn
           </svg>
         )}
         <span className="flex-1 truncate text-left text-fg">
-          {isAllSnips ? allSnipsLabel : (selectedFolder?.name ?? 'Select folder…')}
+          {isUnfiled ? 'Unfiled' : (selectedFolder?.name ?? 'Select folder…')}
         </span>
         <svg
           className={`w-3.5 h-3.5 text-muted flex-shrink-0 transition-transform duration-150 ${isOpen ? 'rotate-180' : ''}`}
@@ -93,20 +92,20 @@ export function FolderSelect({ folders, value, onChange, allSnipsLabel = 'All Sn
 
           {/* List */}
           <div className="max-h-44 overflow-y-auto py-1">
-            {/* All Snips option — pinned at top, shown when not filtered out */}
-            {showAllSnipsOption && (
+            {/* Unfiled option — pinned at top */}
+            {showUnfiledOption && (
               <button
                 type="button"
                 onClick={() => select('')}
                 className={`w-full text-left px-3 pr-3 py-1.5 text-xs flex items-center gap-2 transition-colors ${
-                  isAllSnips ? 'text-accent bg-accent/8' : 'text-fg-2 hover:text-fg hover:bg-fg/5'
+                  isUnfiled ? 'text-accent bg-accent/8' : 'text-fg-2 hover:text-fg hover:bg-fg/5'
                 }`}
               >
                 <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
                 </svg>
-                <span className="flex-1 truncate">{allSnipsLabel}</span>
-                {isAllSnips && (
+                <span className="flex-1 truncate">Unfiled</span>
+                {isUnfiled && (
                   <svg className="w-3 h-3 text-accent flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                   </svg>
@@ -114,7 +113,7 @@ export function FolderSelect({ folders, value, onChange, allSnipsLabel = 'All Sn
               </button>
             )}
 
-            {filtered.length === 0 && !showAllSnipsOption ? (
+            {filtered.length === 0 && !showUnfiledOption ? (
               <p className="px-3 py-2 text-xs text-muted">No folders found</p>
             ) : (
               filtered.map(({ folder, depth }) => {

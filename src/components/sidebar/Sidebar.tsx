@@ -24,6 +24,8 @@ export function Sidebar({ onCollapse, trashOpen, onTrashClick, onSelectFolder }:
 
   const rootFolders = state.folders.filter((f) => f.parentId === null)
   const isAllSelected = state.selectedFolderId === null
+  const isUnfiledSelected = state.selectedFolderId === '__unfiled__'
+  const unfiledCount = state.snips.filter((s) => !state.folders.some((f) => f.id === s.folderId)).length
 
   function startRenameAll(e: React.MouseEvent) {
     e.stopPropagation()
@@ -134,6 +136,29 @@ export function Sidebar({ onCollapse, trashOpen, onTrashClick, onSelectFolder }:
             </>
           )}
         </div>
+
+        {/* Unfiled row */}
+        {unfiledCount > 0 && (
+          <div
+            className={`flex items-center gap-2 px-2 py-1.5 rounded-lg transition-colors cursor-pointer ${
+              isUnfiledSelected && !trashOpen
+                ? 'bg-accent/10 text-accent'
+                : 'text-fg-2 hover:text-fg hover:bg-fg/6'
+            }`}
+            onClick={() => onSelectFolder('__unfiled__')}
+          >
+            <svg
+              className={`w-3.5 h-3.5 flex-shrink-0 ${isUnfiledSelected && !trashOpen ? 'text-accent' : 'text-muted'}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+            </svg>
+            <span className="flex-1 text-xs font-medium">Unfiled</span>
+            <span className="text-[10px] text-muted tabular-nums">{unfiledCount}</span>
+          </div>
+        )}
 
         <div className="pt-2 pb-1 px-1">
           <div className="border-t border-border" />

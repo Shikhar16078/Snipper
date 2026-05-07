@@ -366,7 +366,6 @@ export const SnipEditorView = forwardRef<SnipEditorHandle, SnipEditorViewProps>(
                   folders={state.folders}
                   value={folderId}
                   onChange={setFolderId}
-                  allSnipsLabel={state.allSnipsLabel || 'All Snips'}
                 />
               </div>
               {isEditMode && currentSnip ? (
