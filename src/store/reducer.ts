@@ -1,4 +1,4 @@
-import type { AppState, Folder, TrashedFolder, TrashedSnip, TrashAutoPurge } from '../types'
+import type { AppState, Folder, TrashedFolder, TrashedSnip } from '../types'
 import type { Action } from './actions'
 import { generateId } from '../utils/id'
 

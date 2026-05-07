@@ -16,6 +16,10 @@ interface SnipCardProps {
 
 const HOLD_DURATION = 200
 
+// Module-level tracker so mouse position persists across card remounts
+const mousePos = { x: -1, y: -1 }
+document.addEventListener('mousemove', (e) => { mousePos.x = e.clientX; mousePos.y = e.clientY }, { passive: true })
+
 export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
   const { state, dispatch } = useApp()
   const { copy, copied } = useCopyToClipboard(1500)
@@ -29,6 +33,7 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
   const [isDragging, setIsDragging] = useState(false)
   const [holdProgress, setHoldProgress] = useState(0)
   const [isHovered, setIsHovered] = useState(false)
+  const cardRef = useRef<HTMLDivElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const kebabRef = useRef<HTMLButtonElement>(null)
   const linksRef = useRef<HTMLDivElement>(null)
@@ -40,6 +45,17 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
   const links = extractLinks(snip.body)
 
   useEffect(() => () => { if (holdRafRef.current) cancelAnimationFrame(holdRafRef.current) }, [])
+
+  // On mount, detect if cursor is already over the card (handles remount after editor/trash closes).
+  // Delayed past the view-enter animation (320ms) to avoid Chromium cursor flicker during GPU repaint.
+  useEffect(() => {
+    const id = setTimeout(() => {
+      if (mousePos.x < 0 || !cardRef.current) return
+      const el = document.elementFromPoint(mousePos.x, mousePos.y)
+      if (cardRef.current.contains(el)) setIsHovered(true)
+    }, 350)
+    return () => clearTimeout(id)
+  }, [])
 
   useEffect(() => {
     if (!isHovered) return
@@ -82,6 +98,23 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
   useEffect(() => {
     if (!menuOpen) { setMenuView('main'); setMoveSearch('') }
   }, [menuOpen])
+
+  useEffect(() => {
+    if (!deleteConfirmOpen) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        dispatch({ type: 'DELETE_SNIP', payload: { id: snip.id } })
+        setDeleteConfirmOpen(false)
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    // Restore hover when modal closes so keyboard shortcuts still work
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      setIsHovered(true)
+    }
+  }, [deleteConfirmOpen, snip.id, dispatch])
 
   useEffect(() => {
     if (!linksOpen) return
@@ -181,6 +214,7 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
   return (
     <>
     <div
+      ref={cardRef}
       draggable
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
