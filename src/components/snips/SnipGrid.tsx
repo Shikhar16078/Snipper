@@ -1,10 +1,32 @@
 import { useState, useRef, useEffect } from 'react'
-import type { Snip, Folder } from '../../types'
+import type { Snip, Folder, SnipSort } from '../../types'
 import { useApp } from '../../store/AppContext'
 import { SnipCard } from './SnipCard'
 import { EmptyState } from './EmptyState'
 import { Settings } from '../ui/Settings'
 import { TipsFooter } from './TipsFooter'
+
+const SORT_OPTIONS: { value: SnipSort; label: string }[] = [
+  { value: 'updated', label: 'Last modified' },
+  { value: 'newest', label: 'Newest first' },
+  { value: 'oldest', label: 'Oldest first' },
+  { value: 'az',     label: 'A → Z' },
+  { value: 'za',     label: 'Z → A' },
+  { value: 'most-used', label: 'Most used' },
+]
+
+function sortSnips(snips: Snip[], sort: SnipSort): Snip[] {
+  return [...snips].sort((a, b) => {
+    switch (sort) {
+      case 'az':       return a.name.localeCompare(b.name)
+      case 'za':       return b.name.localeCompare(a.name)
+      case 'newest':   return b.createdAt - a.createdAt
+      case 'oldest':   return a.createdAt - b.createdAt
+      case 'most-used':return (b.copyCount ?? 0) - (a.copyCount ?? 0)
+      default:         return b.updatedAt - a.updatedAt
+    }
+  })
+}
 
 interface SnipGridProps {
   onAdd: () => void
@@ -12,6 +34,8 @@ interface SnipGridProps {
   collapsed: boolean
   onToggleSidebar: () => void
   onOpenHelp: () => void
+  onOpenImport?: () => void
+  onOpenExport?: () => void
 }
 
 function getAllDescendantIds(folderId: string, folders: Folder[]): string[] {
@@ -19,11 +43,23 @@ function getAllDescendantIds(folderId: string, folders: Folder[]): string[] {
   return children.flatMap((c) => [c.id, ...getAllDescendantIds(c.id, folders)])
 }
 
-export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp }: SnipGridProps) {
+export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp, onOpenImport, onOpenExport }: SnipGridProps) {
   const { state, dispatch } = useApp()
   const [search, setSearch] = useState('')
   const [expandAll, setExpandAll] = useState(false)
+  const [sortOpen, setSortOpen] = useState(false)
+  const [starFilter, setStarFilter] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
+  const sortRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!sortOpen) return
+    function onOutside(e: MouseEvent) {
+      if (sortRef.current && !sortRef.current.contains(e.target as Node)) setSortOpen(false)
+    }
+    document.addEventListener('mousedown', onOutside)
+    return () => document.removeEventListener('mousedown', onOutside)
+  }, [sortOpen])
 
   // Cmd/Ctrl+F focuses the search bar
   useEffect(() => {
@@ -42,25 +78,31 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
     return () => document.removeEventListener('keydown', onKey)
   }, [])
 
+  const isUnfiled = state.selectedFolderId === '__unfiled__'
   const folderSnips =
     state.selectedFolderId === null
       ? [...state.snips]
-      : state.snips.filter((s) => {
-          const ids = [state.selectedFolderId!, ...getAllDescendantIds(state.selectedFolderId!, state.folders)]
-          return ids.includes(s.folderId)
-        })
+      : isUnfiled
+        ? state.snips.filter((s) => !state.folders.some((f) => f.id === s.folderId))
+        : state.snips.filter((s) => {
+            const ids = [state.selectedFolderId!, ...getAllDescendantIds(state.selectedFolderId!, state.folders)]
+            return ids.includes(s.folderId)
+          })
 
   const q = search.trim().toLowerCase()
-  const visibleSnips = q
+  const filtered = q
     ? folderSnips.filter(
         (s) => s.name.toLowerCase().includes(q) || s.body.toLowerCase().includes(q),
       )
     : folderSnips
 
-  visibleSnips.sort((a, b) => b.updatedAt - a.updatedAt)
+  const sorted = sortSnips(filtered, state.snipSort)
+  const pinnedSnips = sorted.filter((s) => s.pinned)
+  const displaySnips = starFilter ? pinnedSnips : sorted
+  const visibleSnips = displaySnips
 
   const currentFolder = state.folders.find((f) => f.id === state.selectedFolderId)
-  const title = currentFolder ? currentFolder.name : (state.allSnipsLabel || 'All Snips')
+  const title = isUnfiled ? 'Unfiled' : currentFolder ? currentFolder.name : (state.allSnipsLabel || 'All Snips')
 
   const isMac = window.api?.platform === 'darwin'
 
@@ -90,7 +132,11 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
 
         {/* Title Badge */}
         <div className="flex items-center gap-1.5 bg-panel border border-border shadow-sm rounded-lg px-2.5 h-[26px] mr-1">
-          {currentFolder ? (
+          {isUnfiled ? (
+            <svg className="w-3.5 h-3.5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+            </svg>
+          ) : currentFolder ? (
             <svg className="w-3.5 h-3.5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
             </svg>
@@ -138,6 +184,67 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
           </div>
         </div>
 
+        {/* Star filter */}
+        <button
+          onClick={() => setStarFilter((v) => !v)}
+          title={starFilter ? 'Show all snips' : 'Show starred only'}
+          className={`relative p-1.5 rounded-md transition-colors app-no-drag ${
+            starFilter
+              ? 'text-amber-400 bg-amber-400/15'
+              : 'text-muted hover:text-fg hover:bg-fg/8'
+          }`}
+        >
+          <svg className="w-3.5 h-3.5" fill={starFilter ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={starFilter ? 0 : 2} d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+          </svg>
+          {pinnedSnips.length > 0 && !starFilter && (
+            <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-amber-400 text-white text-[8px] font-bold rounded-full flex items-center justify-center leading-none">
+              {pinnedSnips.length > 9 ? '9+' : pinnedSnips.length}
+            </span>
+          )}
+        </button>
+
+        {/* Sort */}
+        <div ref={sortRef} className="relative app-no-drag">
+          <button
+            onClick={() => setSortOpen((v) => !v)}
+            title="Sort snippets"
+            className={`p-1.5 rounded-md transition-colors ${
+              state.snipSort !== 'updated' || sortOpen
+                ? 'text-accent bg-accent/10'
+                : 'text-muted hover:text-fg hover:bg-fg/8'
+            }`}
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
+            </svg>
+          </button>
+          {sortOpen && (
+            <div className="absolute right-0 top-full mt-1 w-40 bg-panel border border-border rounded-xl shadow-xl py-1.5 z-50 animate-pop">
+              {SORT_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => { dispatch({ type: 'SET_SNIP_SORT', payload: opt.value }); setSortOpen(false) }}
+                  className={`w-full text-left px-3 py-1.5 text-xs flex items-center justify-between gap-2 transition-colors ${
+                    state.snipSort === opt.value
+                      ? 'text-accent font-semibold'
+                      : 'text-fg-2 hover:text-fg hover:bg-fg/5'
+                  }`}
+                >
+                  {opt.label}
+                  {state.snipSort === opt.value && (
+                    <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="w-px h-4 bg-border flex-shrink-0" />
+
         {/* Expand-all toggle */}
         <button
           onClick={() => setExpandAll((x) => !x)}
@@ -151,8 +258,8 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
               d={expandAll
-                ? 'M5 15l7-7 7 7'           // collapse icon (chevron up)
-                : 'M4 8V4m0 0h4M4 4l5 5M20 8V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5M20 16v4m0 0h-4m4 0l-5-5'  // expand icon
+                ? 'M5 15l7-7 7 7'
+                : 'M4 8V4m0 0h4M4 4l5 5M20 8V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5M20 16v4m0 0h-4m4 0l-5-5'
               }
             />
           </svg>
@@ -192,12 +299,12 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
         </button>
 
         {/* Settings */}
-        <Settings onOpenHelp={onOpenHelp} />
+        <Settings onOpenHelp={onOpenHelp} onOpenImport={onOpenImport} onOpenExport={onOpenExport} />
       </div>
 
       {/* ── Cards ── */}
       {visibleSnips.length === 0 ? (
-        <EmptyState onAdd={onAdd} isSearching={!!q} />
+        <EmptyState onAdd={onAdd} isSearching={!!q} isStarFiltering={starFilter && !q} />
       ) : (
         <div
           className="flex-1 overflow-y-auto p-4"
@@ -216,7 +323,7 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
             className={state.viewMode === 'grid' ? 'grid gap-3' : 'flex flex-col gap-2'}
             style={state.viewMode === 'grid' ? { gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' } : undefined}
           >
-            {visibleSnips.map((snip) => (
+            {displaySnips.map((snip) => (
               <SnipCard key={snip.id} snip={snip} onEdit={onEdit} expanded={expandAll} />
             ))}
           </div>
