@@ -1,20 +1,29 @@
 interface EmptyStateProps {
   onAdd: () => void
   isSearching: boolean
-  isStarFiltering?: boolean
+  isFiltering?: boolean
+  onClearFilters?: () => void
 }
 
-export function EmptyState({ onAdd, isSearching, isStarFiltering }: EmptyStateProps) {
-  if (isStarFiltering) {
+export function EmptyState({ onAdd, isSearching, isFiltering, onClearFilters }: EmptyStateProps) {
+  if (isFiltering) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-center px-8 select-none">
         <div className="w-12 h-12 rounded-2xl bg-panel border border-border flex items-center justify-center mb-4">
-          <svg className="w-5 h-5 text-amber-400/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+          <svg className="w-5 h-5 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
           </svg>
         </div>
-        <p className="text-sm font-medium text-fg mb-1">No starred snips</p>
-        <p className="text-xs text-muted">Star a snip to pin it here</p>
+        <p className="text-sm font-medium text-fg mb-1">No snips match these filters</p>
+        <p className="text-xs text-muted mb-4">Try adjusting your filters or search scope</p>
+        {onClearFilters && (
+          <button
+            onClick={onClearFilters}
+            className="text-xs text-accent hover:text-accent/80 transition-colors"
+          >
+            Clear filters
+          </button>
+        )}
       </div>
     )
   }
