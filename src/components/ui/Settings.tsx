@@ -350,6 +350,9 @@ export function Settings({ onOpenHelp, isOnHelp }: { onOpenHelp?: () => void; is
                     </button>
                   )}
                 </div>
+                {updateStatus === 'You are up to date' && !updateError && (
+                  <p className="text-[10px] text-muted px-3 pb-1">{updateStatus}</p>
+                )}
                 {installerState === 'downloading' && (
                   <div className="px-3 py-2">
                     <div className="flex items-center gap-2">
@@ -388,9 +391,6 @@ export function Settings({ onOpenHelp, isOnHelp }: { onOpenHelp?: () => void; is
                       </svg>
                     </button>
                   </div>
-                )}
-                {updateStatus === 'You are up to date' && !updateError && (
-                  <p className="text-[10px] text-muted px-3 pb-1">{updateStatus}</p>
                 )}
               </div>
 
