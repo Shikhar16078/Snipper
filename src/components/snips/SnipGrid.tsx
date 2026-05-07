@@ -116,15 +116,18 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
 
   // ── Snip pool (current view scope) ──────────────────────────────────────
   const isUnfiled = state.selectedFolderId === '__unfiled__'
+  const selectedTag = state.tags.find((t) => t.id === state.selectedTagId) ?? null
   const viewSnips =
-    state.selectedFolderId === null
-      ? [...state.snips]
-      : isUnfiled
-        ? state.snips.filter((s) => !state.folders.some((f) => f.id === s.folderId))
-        : state.snips.filter((s) => {
-            const ids = [state.selectedFolderId!, ...getAllDescendantIds(state.selectedFolderId!, state.folders)]
-            return ids.includes(s.folderId)
-          })
+    state.selectedTagId
+      ? state.snips.filter((s) => s.tagIds?.includes(state.selectedTagId!))
+      : state.selectedFolderId === null
+        ? [...state.snips]
+        : isUnfiled
+          ? state.snips.filter((s) => !state.folders.some((f) => f.id === s.folderId))
+          : state.snips.filter((s) => {
+              const ids = [state.selectedFolderId!, ...getAllDescendantIds(state.selectedFolderId!, state.folders)]
+              return ids.includes(s.folderId)
+            })
 
   // ── Apply filters ────────────────────────────────────────────────────────
   const scopeBase  = filterFolderIds.size > 0
@@ -156,7 +159,7 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
   }
 
   const currentFolder = state.folders.find((f) => f.id === state.selectedFolderId)
-  const title = isUnfiled ? 'Unfiled' : currentFolder ? currentFolder.name : (state.allSnipsLabel || 'All Snips')
+  const title = selectedTag ? selectedTag.name : isUnfiled ? 'Unfiled' : currentFolder ? currentFolder.name : (state.allSnipsLabel || 'All Snips')
 
   const flatFolders = flattenFolders(state.folders)
   const folderQ = folderSearch.trim().toLowerCase()
@@ -193,7 +196,9 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
 
         {/* Title Badge */}
         <div className="flex items-center gap-1.5 bg-panel border border-border shadow-sm rounded-lg px-2.5 h-[26px] mr-1">
-          {isUnfiled ? (
+          {selectedTag ? (
+            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: selectedTag.color }} />
+          ) : isUnfiled ? (
             <svg className="w-3.5 h-3.5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
             </svg>

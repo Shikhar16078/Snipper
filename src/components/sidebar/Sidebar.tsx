@@ -1,9 +1,11 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useApp } from '../../store/AppContext'
 import { useDrag } from '../../context/DragContext'
 import { FolderItem } from './FolderItem'
 import { flattenFolders } from '../../utils/folders'
 import { DropZone, SeparatorRow } from './Separator'
+import { TAG_COLORS } from '../../types'
+import { generateId } from '../../utils/id'
 
 interface SidebarProps {
   onCollapse: () => void
@@ -21,6 +23,48 @@ export function Sidebar({ onCollapse, trashOpen, onTrashClick, onSelectFolder }:
   const [folderSearch, setFolderSearch] = useState('')
   const renameInputRef = useRef<HTMLInputElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
+
+  // Tag management state
+  const [tagsCollapsed, setTagsCollapsed] = useState(false)
+  const [renamingTagId, setRenamingTagId] = useState<string | null>(null)
+  const [renameTagValue, setRenameTagValue] = useState('')
+  const [colorPickerTagId, setColorPickerTagId] = useState<string | null>(null)
+  const [confirmDeleteTagId, setConfirmDeleteTagId] = useState<string | null>(null)
+  const colorPickerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!colorPickerTagId) return
+    function onOutside(e: MouseEvent) {
+      if (colorPickerRef.current && !colorPickerRef.current.contains(e.target as Node)) {
+        setColorPickerTagId(null)
+      }
+    }
+    document.addEventListener('mousedown', onOutside)
+    return () => document.removeEventListener('mousedown', onOutside)
+  }, [colorPickerTagId])
+
+  function addTag() {
+    const color = TAG_COLORS[Math.floor(Math.random() * TAG_COLORS.length)].hex
+    const id = generateId()
+    dispatch({ type: 'ADD_TAG', payload: { id, name: 'New tag', color } })
+    setRenameTagValue('New tag')
+    setRenamingTagId(id)
+  }
+
+  function commitRenameTag(id: string, color: string) {
+    const trimmed = renameTagValue.trim()
+    if (trimmed) dispatch({ type: 'EDIT_TAG', payload: { id, name: trimmed, color } })
+    setRenamingTagId(null)
+  }
+
+  function handleDeleteTag(tagId: string) {
+    const snipCount = state.snips.filter((s) => s.tagIds?.includes(tagId)).length
+    if (state.deleteConfirmEnabled && snipCount > 0) {
+      setConfirmDeleteTagId(tagId)
+    } else {
+      dispatch({ type: 'DELETE_TAG', payload: { id: tagId } })
+    }
+  }
 
   const rootFolders = state.folders.filter((f) => f.parentId === null)
   const isAllSelected = state.selectedFolderId === null
@@ -159,6 +203,148 @@ export function Sidebar({ onCollapse, trashOpen, onTrashClick, onSelectFolder }:
             <span className="text-[10px] text-muted tabular-nums">{unfiledCount}</span>
           </div>
         )}
+
+        {/* Tags section */}
+        <div className="mt-1">
+          <div className="flex items-center px-2 py-1">
+            {/* Collapse toggle — takes all available space */}
+            <div
+              className="flex items-center gap-1 flex-1 cursor-pointer group/tags min-w-0"
+              onClick={() => setTagsCollapsed((v) => !v)}
+            >
+              <svg
+                className={`w-3 h-3 text-muted flex-shrink-0 transition-transform duration-150 ${tagsCollapsed ? '-rotate-90' : ''}`}
+                fill="none" stroke="currentColor" viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+              <span className="text-[10px] font-semibold tracking-[0.12em] uppercase text-muted group-hover/tags:text-fg transition-colors">
+                Tags{state.tags.length > 0 && ` (${state.tags.length})`}
+              </span>
+            </div>
+            {/* Plus button — sibling, aligns with folder counts */}
+            <button
+              onClick={() => { addTag(); setTagsCollapsed(false) }}
+              className="p-0.5 rounded text-muted hover:text-accent transition-colors flex-shrink-0"
+              title="Add tag"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+            </button>
+          </div>
+
+          {!tagsCollapsed && state.tags.map((tag) => {
+              const isSelected = state.selectedTagId === tag.id && !trashOpen
+              const snipCount = state.snips.filter((s) => s.tagIds?.includes(tag.id)).length
+              const isRenaming = renamingTagId === tag.id
+              const showColorPicker = colorPickerTagId === tag.id
+              const isConfirmingDelete = confirmDeleteTagId === tag.id
+
+              return (
+                <div key={tag.id} className="relative">
+                  <div
+                    className={`group flex items-center gap-2 px-2 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                      isSelected ? 'border-l-2' : 'text-fg-2 hover:text-fg hover:bg-fg/6'
+                    }`}
+                    style={isSelected ? { backgroundColor: tag.color + '18', borderColor: tag.color, color: tag.color } : undefined}
+                    onClick={() => { if (!isRenaming) dispatch({ type: 'SELECT_TAG', payload: { id: tag.id } }) }}
+                  >
+                    {/* Color dot — clickable in organizer mode */}
+                    <button
+                      className={`w-2.5 h-2.5 rounded-full flex-shrink-0 transition-all ${state.isEditMode ? 'hover:ring-2 hover:ring-offset-1 hover:ring-fg/30 cursor-pointer' : 'cursor-default'}`}
+                      style={{ backgroundColor: tag.color }}
+                      onClick={state.isEditMode ? (e) => { e.stopPropagation(); setColorPickerTagId(showColorPicker ? null : tag.id) } : undefined}
+                      title={state.isEditMode ? 'Change color' : undefined}
+                    />
+
+                    {isRenaming ? (
+                      <input
+                        autoFocus
+                        value={renameTagValue}
+                        onChange={(e) => setRenameTagValue(e.target.value)}
+                        onBlur={() => commitRenameTag(tag.id, tag.color)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') commitRenameTag(tag.id, tag.color)
+                          if (e.key === 'Escape') setRenamingTagId(null)
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex-1 text-xs bg-transparent outline-none border-b border-accent text-fg"
+                      />
+                    ) : (
+                      <>
+                        <span className="flex-1 text-xs font-medium truncate">{tag.name}</span>
+                        {!isSelected && snipCount > 0 && (
+                          <span className="text-[10px] text-muted tabular-nums group-hover:hidden">{snipCount}</span>
+                        )}
+                        {/* Rename + delete in organizer mode only */}
+                        {state.isEditMode && <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setRenameTagValue(tag.name); setRenamingTagId(tag.id) }}
+                            className="p-0.5 rounded text-muted hover:text-fg-2 transition-colors"
+                            title="Rename"
+                          >
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 112.828 2.828L11.828 15.828a4 4 0 01-2.828 1.172H7v-2a4 4 0 011.172-2.828z" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleDeleteTag(tag.id) }}
+                            className="p-0.5 rounded text-muted hover:text-red-500 transition-colors"
+                            title="Delete tag"
+                          >
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4h6v3M3 7h18" />
+                            </svg>
+                          </button>
+                        </div>}
+                      </>
+                    )}
+                  </div>
+
+                  {/* Color picker popover */}
+                  {showColorPicker && (
+                    <div
+                      ref={colorPickerRef}
+                      className="absolute left-6 top-full mt-1 z-50 bg-panel border border-border rounded-lg shadow-xl p-2 flex flex-wrap gap-1.5"
+                      style={{ width: '118px' }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {TAG_COLORS.map((c) => (
+                        <button
+                          key={c.id}
+                          className={`w-5 h-5 rounded-full transition-transform hover:scale-110 ${tag.color === c.hex ? 'ring-2 ring-offset-1 ring-fg/40' : ''}`}
+                          style={{ backgroundColor: c.hex }}
+                          onClick={() => { dispatch({ type: 'EDIT_TAG', payload: { id: tag.id, name: tag.name, color: c.hex } }); setColorPickerTagId(null) }}
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Delete confirm */}
+                  {isConfirmingDelete && (
+                    <div className="mx-2 mb-1 p-2.5 rounded-lg bg-panel border border-border shadow-sm">
+                      <p className="text-[11px] text-fg mb-2">Remove tag from {state.snips.filter((s) => s.tagIds?.includes(tag.id)).length} snip(s)?</p>
+                      <div className="flex gap-1.5">
+                        <button
+                          onClick={() => { dispatch({ type: 'DELETE_TAG', payload: { id: tag.id } }); setConfirmDeleteTagId(null) }}
+                          className="flex-1 text-[11px] bg-red-500 hover:bg-red-600 text-white rounded-md py-1 transition-colors"
+                        >
+                          Delete
+                        </button>
+                        <button
+                          onClick={() => setConfirmDeleteTagId(null)}
+                          className="flex-1 text-[11px] bg-fg/8 hover:bg-fg/12 text-fg-2 rounded-md py-1 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+          })}
+        </div>
 
         <div className="pt-2 pb-1 px-1">
           <div className="border-t border-border" />

@@ -83,6 +83,8 @@ export const SnipEditorView = forwardRef<SnipEditorHandle, SnipEditorViewProps>(
   const [body, setBody] = useState(() => mode === 'edit' && snip ? snip.body : '')
   const [folderId, setFolderId] = useState(() => mode === 'edit' && snip ? snip.folderId : initialFolderId)
   const [linkTitles, setLinkTitles] = useState<Record<string, string>>(() => mode === 'edit' && snip ? (snip.linkTitles ?? {}) : {})
+  const [currentTagIds, setCurrentTagIds] = useState<string[]>(() => mode === 'edit' && snip ? (snip.tagIds ?? []) : [])
+  const [savedTagIds, setSavedTagIds] = useState<string[]>(() => mode === 'edit' && snip ? (snip.tagIds ?? []) : [])
   const [internalEditSnip, setInternalEditSnip] = useState<Snip | null>(null)
 
   const effectiveSnip = snip ?? internalEditSnip
@@ -98,6 +100,7 @@ export const SnipEditorView = forwardRef<SnipEditorHandle, SnipEditorViewProps>(
 
   const isMac = window.api?.platform === 'darwin'
   const detectedLinks = useMemo(() => extractLinks(body), [body])
+
 
   useEffect(() => {
     setLinkTitles((prev) => {
@@ -169,7 +172,8 @@ export const SnipEditorView = forwardRef<SnipEditorHandle, SnipEditorViewProps>(
     savedCanonical.name !== currentCanonical.name ||
     savedCanonical.body !== currentCanonical.body ||
     savedCanonical.folderId !== currentCanonical.folderId ||
-    linkTitleKey(savedCanonical.linkTitles) !== linkTitleKey(currentCanonical.linkTitles)
+    linkTitleKey(savedCanonical.linkTitles) !== linkTitleKey(currentCanonical.linkTitles) ||
+    JSON.stringify([...currentTagIds].sort()) !== JSON.stringify([...savedTagIds].sort())
 
   const canSave = currentCanonical.name.length > 0 && currentCanonical.body.trim().length > 0
 
@@ -196,22 +200,26 @@ export const SnipEditorView = forwardRef<SnipEditorHandle, SnipEditorViewProps>(
           body: currentCanonical.body,
           folderId: currentCanonical.folderId,
           linkTitles: currentCanonical.linkTitles,
+          tagIds: currentTagIds,
         },
       })
       setSavedCanonical(currentCanonical)
+      setSavedTagIds([...currentTagIds])
     } else {
       const id = generateId()
       const now = Date.now()
       dispatch({
         type: 'ADD_SNIP',
         payload: { id, name: currentCanonical.name, body: currentCanonical.body,
-          folderId: currentCanonical.folderId, linkTitles: currentCanonical.linkTitles },
+          folderId: currentCanonical.folderId, linkTitles: currentCanonical.linkTitles,
+          tagIds: currentTagIds },
       })
       const newSnip: Snip = { id, name: currentCanonical.name, body: currentCanonical.body,
         folderId: currentCanonical.folderId, linkTitles: currentCanonical.linkTitles,
-        createdAt: now, updatedAt: now }
+        tagIds: currentTagIds, createdAt: now, updatedAt: now }
       setInternalEditSnip(newSnip)
       setSavedCanonical(currentCanonical)
+      setSavedTagIds([...currentTagIds])
     }
   }
   latestHandleSaveRef.current = handleSave
@@ -384,6 +392,35 @@ export const SnipEditorView = forwardRef<SnipEditorHandle, SnipEditorViewProps>(
               </div>
             </div>
           </section>
+
+          {/* Tags section */}
+          {state.tags.length > 0 && (
+            <section className="flex-shrink-0 rounded-xl border border-border bg-panel p-3">
+              <label className="block text-[10px] font-semibold tracking-wide uppercase text-muted mb-2">Tags</label>
+              <div className="space-y-0.5">
+                {state.tags.map((tag) => {
+                  const isChecked = currentTagIds.includes(tag.id)
+                  return (
+                    <button
+                      key={tag.id}
+                      onClick={() => setCurrentTagIds((prev) =>
+                        isChecked ? prev.filter((id) => id !== tag.id) : [...prev, tag.id]
+                      )}
+                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors hover:bg-fg/5"
+                    >
+                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: tag.color }} />
+                      <span className={`flex-1 truncate text-left ${isChecked ? 'text-fg font-medium' : 'text-fg-2'}`}>{tag.name}</span>
+                      {isChecked && (
+                        <svg className="w-3 h-3 flex-shrink-0 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            </section>
+          )}
 
           <section className="min-h-0 flex flex-col rounded-xl border border-border bg-panel p-3">
             <h3 className="flex-shrink-0 text-xs font-semibold text-fg mb-2">Links ({detectedLinks.length})</h3>

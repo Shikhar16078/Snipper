@@ -25,7 +25,7 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
   const { copy, copied } = useCopyToClipboard(1500)
   const { setDraggingSnipId } = useDrag()
   const [menuOpen, setMenuOpen] = useState(false)
-  const [menuView, setMenuView] = useState<'main' | 'move'>('main')
+  const [menuView, setMenuView] = useState<'main' | 'move' | 'tags'>('main')
   const [menuPos, setMenuPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [linksOpen, setLinksOpen] = useState(false)
@@ -290,6 +290,30 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
             {snip.body}
           </p>
 
+          {/* Tag pills */}
+          {snip.tagIds && snip.tagIds.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-2" onClick={(e) => e.stopPropagation()}>
+              {snip.tagIds.slice(0, 4).map((tid) => {
+                const tag = state.tags.find((t) => t.id === tid)
+                if (!tag) return null
+                return (
+                  <button
+                    key={tid}
+                    onClick={() => dispatch({ type: 'SELECT_TAG', payload: { id: tid } })}
+                    className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium transition-opacity hover:opacity-80"
+                    style={{ backgroundColor: tag.color + '22', color: tag.color }}
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: tag.color }} />
+                    {tag.name}
+                  </button>
+                )
+              })}
+              {snip.tagIds.length > 4 && (
+                <span className="text-[10px] text-muted self-center">+{snip.tagIds.length - 4}</span>
+              )}
+            </div>
+          )}
+
           {/* Bottom section — pinned to bottom via mt-auto */}
           <div className="mt-auto">
             {links.length > 0 ? (
@@ -406,7 +430,7 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
         <div
           ref={menuRef}
           style={{ position: 'fixed', left: menuPos.x, top: menuPos.y, zIndex: 9999 }}
-          className={`bg-panel border border-border rounded-xl shadow-xl py-1.5 animate-pop overflow-hidden ${menuView === 'move' ? 'w-44' : 'w-40'}`}
+          className={`bg-panel border border-border rounded-xl shadow-xl py-1.5 animate-pop overflow-hidden ${menuView === 'move' || menuView === 'tags' ? 'w-44' : 'w-40'}`}
           onClick={(e) => e.stopPropagation()}
         >
           {menuView === 'main' ? (
@@ -447,6 +471,15 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
                 </svg>
                 Move
               </button>
+              <button
+                onClick={() => setMenuView('tags')}
+                className="w-full text-left px-3 py-1.5 text-xs text-fg-2 hover:text-fg hover:bg-fg/5 transition-colors flex items-center gap-2"
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5a1.99 1.99 0 011.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                </svg>
+                Tags
+              </button>
               <div className="border-t border-border mx-2 my-1" />
               <button
                 onClick={() => {
@@ -461,6 +494,48 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
                 </svg>
                 Delete
               </button>
+            </>
+          ) : menuView === 'tags' ? (
+            <>
+              <button
+                onClick={() => setMenuView('main')}
+                className="w-full text-left px-3 py-1.5 text-xs text-fg-2 hover:text-fg hover:bg-fg/5 transition-colors flex items-center gap-1.5"
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+                <span className="font-medium">Tags</span>
+              </button>
+              <div className="border-t border-border mx-2 mb-1" />
+              {state.tags.length === 0 ? (
+                <p className="px-3 py-2 text-[10px] text-muted">No tags yet. Create tags from the sidebar.</p>
+              ) : (
+                <div className="max-h-48 overflow-y-auto">
+                  {state.tags.map((tag) => {
+                    const hasTag = snip.tagIds?.includes(tag.id) ?? false
+                    return (
+                      <button
+                        key={tag.id}
+                        onClick={() => {
+                          const next = hasTag
+                            ? (snip.tagIds ?? []).filter((id) => id !== tag.id)
+                            : [...(snip.tagIds ?? []), tag.id]
+                          dispatch({ type: 'SET_SNIP_TAGS', payload: { snipId: snip.id, tagIds: next } })
+                        }}
+                        className="w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 hover:bg-fg/5 transition-colors"
+                      >
+                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: tag.color }} />
+                        <span className="flex-1 truncate text-fg-2">{tag.name}</span>
+                        {hasTag && (
+                          <svg className="w-3 h-3 flex-shrink-0 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
             </>
           ) : (
             <>
