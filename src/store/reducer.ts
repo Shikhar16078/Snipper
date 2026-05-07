@@ -189,11 +189,61 @@ export function reducer(state: AppState, action: Action): AppState {
     case 'SET_AUTO_UPDATE_ENABLED':
       return { ...state, autoUpdateEnabled: action.payload }
 
+    case 'SET_SNIP_SORT':
+      return { ...state, snipSort: action.payload }
+
+    case 'TOGGLE_PIN_SNIP':
+      return {
+        ...state,
+        snips: state.snips.map((s) =>
+          s.id === action.payload.id ? { ...s, pinned: !s.pinned } : s,
+        ),
+      }
+
+    case 'DUPLICATE_SNIP': {
+      const src = state.snips.find((s) => s.id === action.payload.id)
+      if (!src) return state
+      const now = Date.now()
+      return {
+        ...state,
+        snips: [
+          ...state.snips,
+          {
+            ...src,
+            id: generateId(),
+            name: `${src.name} (copy)`,
+            pinned: false,
+            copyCount: undefined,
+            lastCopiedAt: undefined,
+            createdAt: now,
+            updatedAt: now,
+          },
+        ],
+      }
+    }
+
+    case 'RECORD_COPY':
+      return {
+        ...state,
+        snips: state.snips.map((s) =>
+          s.id === action.payload.id
+            ? { ...s, copyCount: (s.copyCount ?? 0) + 1, lastCopiedAt: Date.now() }
+            : s,
+        ),
+      }
+
     case 'PURGE_EXPIRED_TRASH': {
       if (state.trashAutoPurge === null) return state
       const cutoff = Date.now() - state.trashAutoPurge
       return { ...state, trash: state.trash.filter((t) => t.deletedAt > cutoff) }
     }
+
+    case 'IMPORT_DATA':
+      return {
+        ...state,
+        folders: [...state.folders, ...action.payload.folders],
+        snips:   [...state.snips,   ...action.payload.snips],
+      }
 
     case 'TOGGLE_EDIT_MODE':
       return { ...state, isEditMode: !state.isEditMode }

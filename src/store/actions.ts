@@ -1,4 +1,4 @@
-import type { AppState, ViewMode, Theme, HoldAction, TrashAutoPurge } from '../types'
+import type { AppState, ViewMode, Theme, HoldAction, TrashAutoPurge, SnipSort, Folder, Snip } from '../types'
 
 export type Action =
   | { type: 'ADD_FOLDER'; payload: { name: string; parentId?: string | null } }
@@ -18,6 +18,11 @@ export type Action =
   | { type: 'SET_HOLD_ACTION'; payload: HoldAction }
   | { type: 'SET_TRASH_AUTO_PURGE'; payload: TrashAutoPurge }
   | { type: 'SET_AUTO_UPDATE_ENABLED'; payload: boolean }
+  | { type: 'SET_SNIP_SORT'; payload: SnipSort }
+  | { type: 'IMPORT_DATA'; payload: { folders: Folder[]; snips: Snip[] } }
+  | { type: 'TOGGLE_PIN_SNIP'; payload: { id: string } }
+  | { type: 'DUPLICATE_SNIP'; payload: { id: string } }
+  | { type: 'RECORD_COPY'; payload: { id: string } }
   | { type: 'PURGE_EXPIRED_TRASH' }
   | { type: 'TOGGLE_EDIT_MODE' }
   | { type: 'ADD_DIVIDER'; payload: { afterFolderId: string | null } }

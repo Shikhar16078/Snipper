@@ -18,10 +18,14 @@ export interface Snip {
   linkTitles?: Record<string, string>
   createdAt: number
   updatedAt: number
+  pinned?: boolean
+  copyCount?: number
+  lastCopiedAt?: number
 }
 
 export type ViewMode = 'grid' | 'list'
 export type HoldAction = 'edit' | 'copy'
+export type SnipSort = 'updated' | 'az' | 'za' | 'newest' | 'oldest' | 'most-used'
 export type TrashAutoPurge = number | null  // null = off, number = ms until permanent deletion
 export type Theme =
   | 'stone'
@@ -61,4 +65,5 @@ export interface AppState {
   holdAction: HoldAction
   trashAutoPurge: TrashAutoPurge
   autoUpdateEnabled: boolean
+  snipSort: SnipSort
 }

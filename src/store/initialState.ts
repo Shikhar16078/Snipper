@@ -15,4 +15,5 @@ export const initialState: AppState = {
   holdAction: 'edit',
   trashAutoPurge: null,
   autoUpdateEnabled: true,
+  snipSort: 'updated',
 }
