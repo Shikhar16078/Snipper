@@ -57,6 +57,11 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
     return () => clearTimeout(id)
   }, [])
 
+  function handleCopy() {
+    copy(snip.body)
+    dispatch({ type: 'RECORD_COPY', payload: { id: snip.id } })
+  }
+
   useEffect(() => {
     if (!isHovered) return
     function onKeyDown(e: KeyboardEvent) {
@@ -65,7 +70,8 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
       if (menuOpen || deleteConfirmOpen) return
       const key = e.key.toLowerCase()
       if (key === 'e') { e.preventDefault(); onEdit(snip) }
-      else if (key === 'c') { e.preventDefault(); copy(snip.body) }
+      else if (key === 'c') { e.preventDefault(); handleCopy() }
+      else if (key === 's') { e.preventDefault(); dispatch({ type: 'TOGGLE_PIN_SNIP', payload: { id: snip.id } }) }
       else if (key === 'd') {
         e.preventDefault()
         if (state.deleteConfirmEnabled) setDeleteConfirmOpen(true)
@@ -88,8 +94,8 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
   }, [menuOpen])
 
   function openMenu(x: number, y: number) {
-    const clampedX = Math.min(x, window.innerWidth - 188)
-    const clampedY = Math.min(y, window.innerHeight - 180)
+    const clampedX = Math.min(x, window.innerWidth - 164)
+    const clampedY = Math.min(y, window.innerHeight - 220)
     setMenuPos({ x: Math.max(4, clampedX), y: Math.max(4, clampedY) })
     setMenuOpen(true)
     setMenuView('main')
@@ -148,7 +154,7 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
         holdActive.current = false
         holdSuppressClick.current = true
         setHoldProgress(0)
-        if (state.holdAction === 'copy') copy(snip.body)
+        if (state.holdAction === 'copy') handleCopy()
         else onEdit(snip)
       }
     }
@@ -173,7 +179,7 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
     if (kebabRef.current?.contains(e.target as Node)) return
     if (linksRef.current?.contains(e.target as Node)) return
     if (state.holdAction === 'copy') onEdit(snip)
-    else copy(snip.body)
+    else handleCopy()
   }
 
   function handleDragStart(e: React.DragEvent) {
@@ -257,9 +263,10 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
         </span>
       </div>
 
-      <div className="p-3">
+      <div className="p-3 flex flex-col h-full">
         {/* Content — blurs progressively during hold, fully on copy */}
         <div
+          className="flex flex-col flex-1"
           style={{
             filter: copied ? 'blur(4px)' : holdProgress > 0 ? `blur(${holdProgress * 3}px)` : undefined,
             opacity: copied ? 0.2 : holdProgress > 0 ? 1 - holdProgress * 0.65 : undefined,
@@ -268,31 +275,14 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
         >
           {/* Header row */}
           <div className="flex items-start justify-between gap-2 mb-2.5">
-            <h3 className="text-sm font-semibold leading-snug text-fg">
+            <h3 className="text-sm font-semibold leading-snug text-fg min-w-0">
               {snip.name}
             </h3>
-
-            {/* Kebab — hover-only */}
-            <div
-              className={`flex-shrink-0 transition-opacity -mt-0.5 ${menuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <button
-                ref={kebabRef}
-                onClick={(e) => {
-                  if (menuOpen) { setMenuOpen(false); return }
-                  const rect = e.currentTarget.getBoundingClientRect()
-                  openMenu(rect.right - 144, rect.bottom + 4)
-                }}
-                className="p-1 rounded text-muted hover:text-fg-2 hover:bg-fg/8 transition-colors"
-              >
-                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 16 16">
-                  <circle cx="8" cy="2.5" r="1.3" />
-                  <circle cx="8" cy="8"   r="1.3" />
-                  <circle cx="8" cy="13.5" r="1.3" />
-                </svg>
-              </button>
-            </div>
+            {snip.pinned && (
+              <svg className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+              </svg>
+            )}
           </div>
 
           {/* Body */}
@@ -300,64 +290,110 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
             {snip.body}
           </p>
 
-          {links.length > 0 && (
-            <div className="mt-3 pt-2.5 border-t border-border/60">
-              {links.length === 1 ? (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    const url = links[0]
-                    if ((window as any).api?.openUrl) (window as any).api.openUrl(url)
-                    else window.open(url, '_blank', 'noopener,noreferrer')
-                  }}
-                  className="flex items-center gap-1.5 text-xs font-semibold text-accent border border-accent/40 hover:border-accent hover:bg-accent/8 px-2.5 py-1 rounded-lg transition-all"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                  </svg>
-                  Visit
-                </button>
-              ) : (
-                <div ref={linksRef} className="relative inline-block" onClick={(e) => e.stopPropagation()}>
+          {/* Bottom section — pinned to bottom via mt-auto */}
+          <div className="mt-auto">
+            {links.length > 0 ? (
+              /* Links row: Visit/Links button on left, kebab on right */
+              <div
+                className="mt-3 pt-2.5 border-t border-border/60 flex items-center justify-between gap-2"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {links.length === 1 ? (
                   <button
-                    onClick={() => setLinksOpen((v) => !v)}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      const url = links[0]
+                      if ((window as any).api?.openUrl) (window as any).api.openUrl(url)
+                      else window.open(url, '_blank', 'noopener,noreferrer')
+                    }}
                     className="flex items-center gap-1.5 text-xs font-semibold text-accent border border-accent/40 hover:border-accent hover:bg-accent/8 px-2.5 py-1 rounded-lg transition-all"
                   >
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 010 5.656l-3 3a4 4 0 11-5.656-5.656l1.5-1.5M10.172 13.828a4 4 0 010-5.656l3-3a4 4 0 115.656 5.656l-1.5 1.5" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                     </svg>
-                    Links ({links.length})
+                    Visit
                   </button>
-
-                  {linksOpen && (
-                    <div className="absolute left-0 top-full mt-1 w-64 max-h-44 overflow-y-auto bg-panel border border-border rounded-xl shadow-xl z-50 p-1.5">
-                      {links.map((url) => (
-                        <button
-                          key={url}
-                          onClick={() => {
-                            if ((window as any).api?.openUrl) (window as any).api.openUrl(url)
-                            else window.open(url, '_blank', 'noopener,noreferrer')
-                            setLinksOpen(false)
-                          }}
-                          className="group w-full text-left px-2.5 py-2 rounded-lg border border-transparent hover:border-accent/35 hover:bg-gradient-to-r hover:from-accent/10 hover:to-accent/5 transition-all duration-150"
-                          title={url}
-                        >
-                          <p className="text-[11px] font-semibold text-fg truncate group-hover:text-accent transition-colors">{getLinkTitle(url, snip.linkTitles)}</p>
-                          <div className="flex items-center gap-1">
-                            <p className="text-[10px] text-muted truncate flex-1">{url}</p>
-                            <svg className="w-3 h-3 text-muted group-hover:text-accent opacity-0 group-hover:opacity-100 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 4h6m0 0v6m0-6L10 14" />
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 14v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2h6" />
-                            </svg>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
+                ) : (
+                  <div ref={linksRef} className="relative inline-block">
+                    <button
+                      onClick={() => setLinksOpen((v) => !v)}
+                      className="flex items-center gap-1.5 text-xs font-semibold text-accent border border-accent/40 hover:border-accent hover:bg-accent/8 px-2.5 py-1 rounded-lg transition-all"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 010 5.656l-3 3a4 4 0 11-5.656-5.656l1.5-1.5M10.172 13.828a4 4 0 010-5.656l3-3a4 4 0 115.656 5.656l-1.5 1.5" />
+                      </svg>
+                      Links ({links.length})
+                    </button>
+                    {linksOpen && (
+                      <div className="absolute left-0 top-full mt-1 w-64 max-h-44 overflow-y-auto bg-panel border border-border rounded-xl shadow-xl z-50 p-1.5">
+                        {links.map((url) => (
+                          <button
+                            key={url}
+                            onClick={() => {
+                              if ((window as any).api?.openUrl) (window as any).api.openUrl(url)
+                              else window.open(url, '_blank', 'noopener,noreferrer')
+                              setLinksOpen(false)
+                            }}
+                            className="group w-full text-left px-2.5 py-2 rounded-lg border border-transparent hover:border-accent/35 hover:bg-gradient-to-r hover:from-accent/10 hover:to-accent/5 transition-all duration-150"
+                            title={url}
+                          >
+                            <p className="text-[11px] font-semibold text-fg truncate group-hover:text-accent transition-colors">{getLinkTitle(url, snip.linkTitles)}</p>
+                            <div className="flex items-center gap-1">
+                              <p className="text-[10px] text-muted truncate flex-1">{url}</p>
+                              <svg className="w-3 h-3 text-muted group-hover:text-accent opacity-0 group-hover:opacity-100 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 4h6m0 0v6m0-6L10 14" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 14v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2h6" />
+                              </svg>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {/* Kebab inline with link button */}
+                <button
+                  ref={kebabRef}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    if (menuOpen) { setMenuOpen(false); return }
+                    const rect = e.currentTarget.getBoundingClientRect()
+                    openMenu(rect.right - 164, rect.bottom + 4)
+                  }}
+                  className={`p-1 rounded text-muted hover:text-fg-2 hover:bg-fg/8 transition-all flex-shrink-0 ${menuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                >
+                  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 16 16">
+                    <circle cx="8" cy="2.5" r="1.3" />
+                    <circle cx="8" cy="8"   r="1.3" />
+                    <circle cx="8" cy="13.5" r="1.3" />
+                  </svg>
+                </button>
+              </div>
+            ) : (
+              /* No links — kebab alone at bottom right */
+              <div
+                className={`flex justify-end mt-2 -mb-0.5 transition-opacity ${menuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button
+                  ref={kebabRef}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    if (menuOpen) { setMenuOpen(false); return }
+                    const rect = e.currentTarget.getBoundingClientRect()
+                    openMenu(rect.right - 164, rect.bottom + 4)
+                  }}
+                  className="p-1 rounded text-muted hover:text-fg-2 hover:bg-fg/8 transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 16 16">
+                    <circle cx="8" cy="2.5" r="1.3" />
+                    <circle cx="8" cy="8"   r="1.3" />
+                    <circle cx="8" cy="13.5" r="1.3" />
+                  </svg>
+                </button>
+              </div>
+            )}
+          </div>{/* end mt-auto */}
         </div>
       </div>
     </div>
@@ -370,11 +406,20 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
         <div
           ref={menuRef}
           style={{ position: 'fixed', left: menuPos.x, top: menuPos.y, zIndex: 9999 }}
-          className={`bg-panel border border-border rounded-xl shadow-xl py-1.5 animate-pop overflow-hidden ${menuView === 'move' ? 'w-44' : 'w-36'}`}
+          className={`bg-panel border border-border rounded-xl shadow-xl py-1.5 animate-pop overflow-hidden ${menuView === 'move' ? 'w-44' : 'w-40'}`}
           onClick={(e) => e.stopPropagation()}
         >
           {menuView === 'main' ? (
             <>
+              <button
+                onClick={() => { dispatch({ type: 'TOGGLE_PIN_SNIP', payload: { id: snip.id } }); setMenuOpen(false) }}
+                className="w-full text-left px-3 py-1.5 text-xs text-fg-2 hover:text-fg hover:bg-fg/5 transition-colors flex items-center gap-2"
+              >
+                <svg className="w-3 h-3 text-amber-400" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                </svg>
+                {snip.pinned ? 'Unstar' : 'Star'}
+              </button>
               <button
                 onClick={() => { onEdit(snip); setMenuOpen(false) }}
                 className="w-full text-left px-3 py-1.5 text-xs text-fg-2 hover:text-fg hover:bg-fg/5 transition-colors flex items-center gap-2"
@@ -383,6 +428,15 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 112.828 2.828L11.828 15.828a4 4 0 01-2.828 1.172H7v-2a4 4 0 011.172-2.828z" />
                 </svg>
                 Edit
+              </button>
+              <button
+                onClick={() => { dispatch({ type: 'DUPLICATE_SNIP', payload: { id: snip.id } }); setMenuOpen(false) }}
+                className="w-full text-left px-3 py-1.5 text-xs text-fg-2 hover:text-fg hover:bg-fg/5 transition-colors flex items-center gap-2"
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                Duplicate
               </button>
               <button
                 onClick={() => setMenuView('move')}
