@@ -30,9 +30,11 @@ interface HelpViewProps {
   onToggleSidebar: () => void
   onOpenHelp: () => void
   onGoHome: () => void
+  onOpenImport?: () => void
+  onOpenExport?: () => void
 }
 
-export function HelpView({ collapsed, onToggleSidebar, onOpenHelp, onGoHome }: HelpViewProps) {
+export function HelpView({ collapsed, onToggleSidebar, onOpenHelp, onGoHome, onOpenImport, onOpenExport }: HelpViewProps) {
   const [selected, setSelected] = useState(0)
   const [navDirection, setNavDirection] = useState<'forward' | 'backward'>('forward')
   const [query, setQuery] = useState('')
@@ -124,7 +126,7 @@ export function HelpView({ collapsed, onToggleSidebar, onOpenHelp, onGoHome }: H
           </div>
         </div>
 
-        <Settings onOpenHelp={onOpenHelp} isOnHelp={true} />
+        <Settings onOpenHelp={onOpenHelp} isOnHelp={true} onOpenImport={onOpenImport} onOpenExport={onOpenExport} />
       </div>
 
       {/* Body */}

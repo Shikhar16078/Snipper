@@ -33,6 +33,8 @@ interface TrashViewProps {
   collapsed: boolean
   onToggleSidebar: () => void
   onOpenHelp: () => void
+  onOpenImport?: () => void
+  onOpenExport?: () => void
 }
 
 const recoverButtonClasses =
@@ -40,7 +42,7 @@ const recoverButtonClasses =
 const deleteButtonClasses =
   'text-white border-red-600/35 bg-red-500 hover:bg-red-600 hover:border-red-600/50 dark:text-red-500 dark:border-red-500/35 dark:bg-transparent dark:hover:bg-red-500/10 dark:hover:border-red-500/60'
 
-export function TrashView({ collapsed, onToggleSidebar, onOpenHelp }: TrashViewProps) {
+export function TrashView({ collapsed, onToggleSidebar, onOpenHelp, onOpenImport, onOpenExport }: TrashViewProps) {
   const { state, dispatch } = useApp()
   const [expandAll, setExpandAll] = useState(false)
   const [search, setSearch] = useState('')
@@ -204,7 +206,7 @@ export function TrashView({ collapsed, onToggleSidebar, onOpenHelp }: TrashViewP
         )}
 
         {/* Settings */}
-        <Settings onOpenHelp={onOpenHelp} />
+        <Settings onOpenHelp={onOpenHelp} onOpenImport={onOpenImport} onOpenExport={onOpenExport} />
       </div>
 
       {/* Cards */}
