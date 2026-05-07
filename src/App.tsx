@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import type { Snip } from './types'
 import { AppProvider, useApp } from './store/AppContext'
+
 import { DragProvider } from './context/DragContext'
 import { Sidebar } from './components/sidebar/Sidebar'
 import { SnipGrid } from './components/snips/SnipGrid'
@@ -12,8 +13,8 @@ type PendingNav = { type: 'folder'; id: string | null } | { type: 'trash' }
 type UpdateCardState =
   | { phase: 'idle' | 'checking' | 'up-to-date' }
   | { phase: 'available'; version: string }
-  | { phase: 'downloading'; version?: string; progress: number }
-  | { phase: 'downloaded'; version: string }
+  | { phase: 'saving'; version: string; progress: number }
+  | { phase: 'done'; version: string }
   | { phase: 'error'; message: string }
 
 const SIDEBAR_MIN = 200
@@ -34,6 +35,7 @@ function AppShell() {
   const editorRef = useRef<SnipEditorHandle>(null)
   const widthBeforeCollapse = useRef(SIDEBAR_DEFAULT)
   const isResizing = useRef(false)
+  const autoCheckingRef = useRef(false)
 
   // Apply theme classes to <html>
   useEffect(() => {
@@ -111,29 +113,26 @@ function AppShell() {
     const updates = window.api?.updates
     if (!updates) return
     return updates.onEvent((payload) => {
-      if (payload.type === 'checking') {
-        setUpdateCard({ phase: 'checking' })
-      } else if (payload.type === 'available') {
-        setUpdateDismissed(false)
-        setUpdateCard({ phase: 'available', version: payload.version })
+      if (payload.type === 'available') {
+        if (autoCheckingRef.current) {
+          setUpdateDismissed(false)
+          setUpdateCard({ phase: 'available', version: payload.version })
+        }
+        autoCheckingRef.current = false
       } else if (payload.type === 'not-available') {
-        setUpdateCard({ phase: 'up-to-date' })
-      } else if (payload.type === 'download-progress') {
-        setUpdateDismissed(false)
+        autoCheckingRef.current = false
+      } else if (payload.type === 'installer-progress') {
         setUpdateCard((prev) => ({
-          phase: 'downloading',
-          version:
-            prev.phase === 'available' || prev.phase === 'downloaded' || prev.phase === 'downloading'
-              ? prev.version
-              : undefined,
+          phase: 'saving',
+          version: prev.phase === 'available' || prev.phase === 'saving' ? prev.version : '',
           progress: payload.percent,
         }))
-      } else if (payload.type === 'downloaded') {
-        setUpdateDismissed(false)
-        setUpdateCard({ phase: 'downloaded', version: payload.version })
       } else if (payload.type === 'error') {
-        setUpdateDismissed(false)
-        setUpdateCard({ phase: 'error', message: payload.message })
+        if (autoCheckingRef.current) {
+          setUpdateDismissed(false)
+          setUpdateCard({ phase: 'error', message: payload.message })
+        }
+        autoCheckingRef.current = false
       }
     })
   }, [])
@@ -141,21 +140,26 @@ function AppShell() {
   useEffect(() => {
     const updates = window.api?.updates
     if (!updates || !window.api?.isPackaged || !state.autoUpdateEnabled) return
+    autoCheckingRef.current = true
     updates.check()
     const id = setInterval(() => {
+      autoCheckingRef.current = true
       updates.check()
     }, 6 * 60 * 60 * 1000)
     return () => clearInterval(id)
   }, [state.autoUpdateEnabled])
 
-  async function startUpdateDownload() {
+  async function handleCardDownload(version: string) {
     if (!window.api?.updates) return
-    await window.api.updates.download()
-  }
-
-  async function installDownloadedUpdate() {
-    if (!window.api?.updates) return
-    await window.api.updates.install()
+    const result = await window.api.updates.chooseSavePath(version)
+    if (result.canceled || !result.filePath) return
+    setUpdateCard({ phase: 'saving', version, progress: 0 })
+    const res = await window.api.updates.downloadInstaller(version, result.filePath)
+    if (res.ok) {
+      setUpdateCard({ phase: 'done', version })
+    } else {
+      setUpdateCard({ phase: 'error', message: res.message ?? 'Download failed' })
+    }
   }
 
   // Global shortcut: N = new snip
@@ -355,26 +359,37 @@ function AppShell() {
           )}
         </div>
 
-        {!updateDismissed && (updateCard.phase === 'available' || updateCard.phase === 'downloading' || updateCard.phase === 'downloaded' || updateCard.phase === 'error') && (
+        {!updateDismissed && (updateCard.phase === 'available' || updateCard.phase === 'saving' || updateCard.phase === 'done' || updateCard.phase === 'error') && (
           <div className="absolute bottom-4 right-4 z-50 w-80 rounded-xl border border-border bg-panel shadow-2xl p-3 app-no-drag update-card-enter">
             <div className="flex items-start justify-between gap-3">
-              <div>
+              <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold text-fg">
-                  {updateCard.phase === 'available' && `Update available${updateCard.version ? ` (v${updateCard.version})` : ''}`}
-                  {updateCard.phase === 'downloading' && 'Downloading update'}
-                  {updateCard.phase === 'downloaded' && `Ready to install${updateCard.version ? ` (v${updateCard.version})` : ''}`}
+                  {updateCard.phase === 'available' && `v${updateCard.version} available`}
+                  {updateCard.phase === 'saving' && 'Downloading installer'}
+                  {updateCard.phase === 'done' && 'Installer downloaded'}
                   {updateCard.phase === 'error' && 'Update failed'}
                 </p>
                 <p className="text-[11px] text-muted mt-1">
                   {updateCard.phase === 'available' && 'A newer version of Snipper is available.'}
-                  {updateCard.phase === 'downloading' && `${Math.max(0, Math.min(100, Math.round(updateCard.progress)))}% downloaded`}
-                  {updateCard.phase === 'downloaded' && 'Restart Snipper to apply the update.'}
-                  {updateCard.phase === 'error' && updateCard.message}
+                  {updateCard.phase === 'error' && <span className="break-words">{updateCard.message}</span>}
                 </p>
+                {updateCard.phase === 'saving' && (
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <div className="flex-1 h-1 bg-fg/10 rounded-full overflow-hidden">
+                      <div className="h-full bg-accent rounded-full transition-all duration-300" style={{ width: `${updateCard.progress}%` }} />
+                    </div>
+                    <span className="text-[10px] text-muted tabular-nums w-7 text-right">{updateCard.progress}%</span>
+                  </div>
+                )}
+                {updateCard.phase === 'done' && (
+                  <div className="mt-1 space-y-0.5">
+                    <p className="text-[11px] text-muted">Copy the trust command from Settings, close Snipper, drag it to Applications, then run the copied command in Terminal and relaunch.</p>
+                  </div>
+                )}
               </div>
               <button
                 onClick={() => setUpdateDismissed(true)}
-                className="p-1 rounded-md text-muted hover:text-fg hover:bg-fg/8 transition-colors"
+                className="flex-shrink-0 p-1 rounded-md text-muted hover:text-fg hover:bg-fg/8 transition-colors"
                 title="Dismiss"
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -385,18 +400,10 @@ function AppShell() {
             <div className="mt-2.5 flex items-center gap-2 justify-end">
               {updateCard.phase === 'available' && (
                 <button
-                  onClick={startUpdateDownload}
-                  className="px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors bg-accent hover:bg-accent-h text-white border-accent/60"
+                  onClick={() => handleCardDownload(updateCard.version)}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors bg-accent hover:bg-accent/90 text-white border-accent/60"
                 >
-                  Download update
-                </button>
-              )}
-              {updateCard.phase === 'downloaded' && (
-                <button
-                  onClick={installDownloadedUpdate}
-                  className="px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors bg-accent hover:bg-accent-h text-white border-accent/60"
-                >
-                  Restart to install
+                  Download installer
                 </button>
               )}
               {updateCard.phase === 'error' && (

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import type { Theme, TrashAutoPurge } from '../../types'
 import { useApp } from '../../store/AppContext'
 import { AboutModal } from '../modals/AboutModal'
+import { useCopyToClipboard } from '../../hooks/useCopyToClipboard'
 
 interface ThemeOption {
   id: Theme
@@ -29,7 +30,7 @@ const DARK_THEMES: ThemeOption[] = [
 
 const PURGE_PRESETS: { label: string; ms: TrashAutoPurge }[] = [
   { label: 'Never',   ms: null },
-  { label: '1 hour',  ms: 60 * 60_000 },
+  { label: '1 day',   ms: 24 * 3_600_000 },
   { label: '7 days',  ms: 7 * 24 * 3_600_000 },
 ]
 
@@ -82,6 +83,10 @@ export function Settings({ onOpenHelp, isOnHelp }: { onOpenHelp?: () => void; is
   const [updateStatus, setUpdateStatus] = useState('')
   const [updateError, setUpdateError] = useState('')
   const [checkingUpdates, setCheckingUpdates] = useState(false)
+  const [availableVersion, setAvailableVersion] = useState('')
+  const [installerState, setInstallerState] = useState<'idle' | 'downloading' | 'done'>('idle')
+  const [installerProgress, setInstallerProgress] = useState(0)
+  const { copy: copyXattrSettings, copied: xattrCopiedSettings } = useCopyToClipboard(2000)
 
   useEffect(() => {
     if (!open) {
@@ -105,16 +110,13 @@ export function Settings({ onOpenHelp, isOnHelp }: { onOpenHelp?: () => void; is
         setUpdateStatus('Checking…')
       } else if (payload.type === 'available') {
         setCheckingUpdates(false)
-        setUpdateStatus(`Update available: v${payload.version}`)
+        setUpdateStatus('')
+        setAvailableVersion(payload.version)
       } else if (payload.type === 'not-available') {
         setCheckingUpdates(false)
         setUpdateStatus('You are up to date')
-      } else if (payload.type === 'download-progress') {
-        setCheckingUpdates(false)
-        setUpdateStatus(`Downloading… ${Math.round(payload.percent)}%`)
-      } else if (payload.type === 'downloaded') {
-        setCheckingUpdates(false)
-        setUpdateStatus(`Ready to install: v${payload.version}`)
+      } else if (payload.type === 'installer-progress') {
+        setInstallerProgress(payload.percent)
       } else if (payload.type === 'error') {
         setCheckingUpdates(false)
         setUpdateStatus('')
@@ -131,14 +133,34 @@ export function Settings({ onOpenHelp, isOnHelp }: { onOpenHelp?: () => void; is
     if (!window.api?.updates) return
     setCheckingUpdates(true)
     setUpdateStatus('Checking…')
+    setUpdateError('')
+    setAvailableVersion('')
+    setInstallerState('idle')
+    setInstallerProgress(0)
     try {
       await window.api.updates.check()
     } catch {
       setCheckingUpdates(false)
-      setUpdateStatus('Update check failed')
+      setUpdateError('Update check failed')
     }
   }
 
+  async function handleDownloadInstaller() {
+    if (!window.api?.updates || !availableVersion) return
+    const result = await window.api.updates.chooseSavePath(availableVersion)
+    if (result.canceled || !result.filePath) return
+    setInstallerState('downloading')
+    setInstallerProgress(0)
+    const res = await window.api.updates.downloadInstaller(availableVersion, result.filePath)
+    if (res.ok) {
+      setInstallerState('done')
+    } else {
+      setInstallerState('idle')
+      setUpdateError(res.message ?? 'Download failed')
+    }
+  }
+
+  const isMac = window.api?.platform === 'darwin'
   const isDark = DARK_IDS.includes(state.theme)
   const activeTheme = ALL_THEMES.find((t) => t.id === state.theme) || DEFAULT_THEME
   const iconColor = activeTheme.accent
@@ -305,16 +327,54 @@ export function Settings({ onOpenHelp, isOnHelp }: { onOpenHelp?: () => void; is
 
               {/* Manual update check */}
               <div className="px-1 pb-0.5">
-                <button
-                  onClick={handleCheckUpdates}
-                  disabled={checkingUpdates || !window.api?.updates}
-                  className="w-full text-left flex items-center justify-between px-3 py-2 text-xs text-fg-2 hover:text-fg hover:bg-fg/5 rounded-lg transition-colors group disabled:opacity-45 disabled:cursor-not-allowed"
-                >
-                  <span>{checkingUpdates ? 'Checking…' : 'Check for updates now'}</span>
-                  <svg className="w-3.5 h-3.5 opacity-50 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                </button>
+                <div className="flex items-center gap-0.5">
+                  <button
+                    onClick={handleCheckUpdates}
+                    disabled={checkingUpdates || !window.api?.updates}
+                    className="flex-1 flex items-center gap-1.5 px-3 py-2 text-xs text-fg-2 hover:text-fg hover:bg-fg/5 rounded-lg transition-colors group disabled:opacity-45 disabled:cursor-not-allowed"
+                  >
+                    <svg className="w-3.5 h-3.5 text-muted flex-shrink-0 opacity-50 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    <span>{checkingUpdates ? 'Checking…' : 'Check for updates'}</span>
+                  </button>
+                  {availableVersion && installerState === 'idle' && (
+                    <button
+                      onClick={handleDownloadInstaller}
+                      className="flex items-center gap-1 px-3 py-2 text-xs text-accent font-medium hover:text-accent/80 hover:bg-fg/5 rounded-lg transition-colors group flex-shrink-0"
+                    >
+                      <span>v{availableVersion}</span>
+                      <svg className="w-3.5 h-3.5 flex-shrink-0 opacity-70 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+                {installerState === 'downloading' && (
+                  <div className="px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-1 bg-fg/10 rounded-full overflow-hidden">
+                        <div className="h-full bg-accent rounded-full transition-all duration-300" style={{ width: `${installerProgress}%` }} />
+                      </div>
+                      <span className="text-[10px] text-muted tabular-nums w-7 text-right">{installerProgress}%</span>
+                    </div>
+                  </div>
+                )}
+                {installerState === 'done' && (
+                  <p className="text-[10px] text-accent px-3 pb-1">Saved! Copy the trust command below, close Snipper, drag it to Applications, run the command in Terminal, then relaunch.</p>
+                )}
+                {isMac && (
+                  <button
+                    onClick={() => copyXattrSettings('sudo xattr -cr /Applications/Snipper.app')}
+                    className="w-full text-left flex items-center justify-between px-3 py-2 text-xs text-fg-2 hover:text-fg hover:bg-fg/5 rounded-lg transition-colors group"
+                  >
+                    <span>{xattrCopiedSettings ? 'Copied!' : 'Copy trust command'}</span>
+                    {xattrCopiedSettings
+                      ? <svg className="w-3.5 h-3.5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                      : <svg className="w-3.5 h-3.5 opacity-50 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                    }
+                  </button>
+                )}
                 {updateError && (
                   <div className="mt-1 mx-0 px-3 py-2 rounded-lg bg-red-500/8 border border-red-500/20 flex items-start gap-2">
                     <p className="text-[10px] text-red-400 break-words leading-relaxed flex-1 min-w-0">{updateError}</p>
@@ -329,7 +389,7 @@ export function Settings({ onOpenHelp, isOnHelp }: { onOpenHelp?: () => void; is
                     </button>
                   </div>
                 )}
-                {updateStatus && !updateError && (
+                {updateStatus === 'You are up to date' && !updateError && (
                   <p className="text-[10px] text-muted px-3 pb-1">{updateStatus}</p>
                 )}
               </div>

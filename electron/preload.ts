@@ -14,6 +14,8 @@ contextBridge.exposeInMainWorld('api', {
     check: () => ipcRenderer.invoke('updates:check'),
     download: () => ipcRenderer.invoke('updates:download'),
     install: () => ipcRenderer.invoke('updates:install'),
+    chooseSavePath: (version: string) => ipcRenderer.invoke('updates:choose-save-path', { version }),
+    downloadInstaller: (version: string, filePath: string) => ipcRenderer.invoke('updates:download-installer', { version, filePath }),
     onEvent: (callback: (payload: unknown) => void) => {
       const listener = (_event: Electron.IpcRendererEvent, payload: unknown) => callback(payload)
       ipcRenderer.on('updates:event', listener)

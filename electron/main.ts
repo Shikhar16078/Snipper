@@ -1,6 +1,8 @@
-import { app, BrowserWindow, ipcMain, shell, systemPreferences } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, shell, systemPreferences } from 'electron'
 import path from 'path'
 import fs from 'fs'
+import https from 'https'
+import http from 'http'
 import { autoUpdater } from 'electron-updater'
 
 const isDev = process.env['NODE_ENV'] === 'development'
@@ -57,6 +59,58 @@ type UpdaterEvent =
   | { type: 'download-progress'; percent: number }
   | { type: 'downloaded'; version: string }
   | { type: 'error'; message: string }
+  | { type: 'installer-progress'; percent: number }
+
+function getInstallerFilename(version: string): string {
+  if (process.platform === 'darwin') {
+    return process.arch === 'arm64' ? `Snipper-${version}-arm64.dmg` : `Snipper-${version}.dmg`
+  }
+  return `Snipper Setup ${version}.exe`
+}
+
+function downloadWithProgress(
+  url: string,
+  destPath: string,
+  onProgress: (percent: number) => void,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    function request(reqUrl: string, redirects = 0) {
+      if (redirects > 5) { reject(new Error('Too many redirects')); return }
+      const mod = reqUrl.startsWith('https') ? https : http
+      mod.get(reqUrl, (res) => {
+        if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          res.resume() // drain redirect body to free the socket
+          request(res.headers.location, redirects + 1)
+          return
+        }
+        if (res.statusCode !== 200) {
+          reject(new Error(`Download failed: HTTP ${res.statusCode}`))
+          return
+        }
+        const total = parseInt(res.headers['content-length'] ?? '0', 10)
+        let received = 0
+        let lastPercent = -1
+        const file = fs.createWriteStream(destPath)
+        res.on('data', (chunk: Buffer) => {
+          received += chunk.length
+          file.write(chunk)
+          if (total > 0) {
+            const percent = Math.round((received / total) * 100)
+            if (percent !== lastPercent) {
+              lastPercent = percent
+              onProgress(percent)
+            }
+          }
+        })
+        res.on('end', () => file.end())
+        res.on('error', (err) => { fs.unlink(destPath, () => {}); reject(err) })
+        file.on('finish', resolve)
+        file.on('error', (err) => { fs.unlink(destPath, () => {}); reject(err) })
+      }).on('error', reject)
+    }
+    request(url)
+  })
+}
 
 function emitUpdaterEvent(payload: UpdaterEvent): void {
   for (const win of BrowserWindow.getAllWindows()) {
@@ -118,6 +172,36 @@ ipcMain.handle('updates:install', () => {
   if (!app.isPackaged) return { ok: false }
   setImmediate(() => autoUpdater.quitAndInstall())
   return { ok: true }
+})
+
+ipcMain.handle('updates:choose-save-path', async (event, { version }: { version: string }) => {
+  const win = BrowserWindow.fromWebContents(event.sender)
+  if (!win) return { canceled: true }
+  const filename = getInstallerFilename(version)
+  const filters = process.platform === 'darwin'
+    ? [{ name: 'macOS Disk Image', extensions: ['dmg'] }]
+    : [{ name: 'Windows Installer', extensions: ['exe'] }]
+  const result = await dialog.showSaveDialog(win, {
+    title: 'Save Snipper Installer',
+    defaultPath: path.join(app.getPath('downloads'), filename),
+    filters,
+  })
+  return { canceled: result.canceled, filePath: result.filePath }
+})
+
+ipcMain.handle('updates:download-installer', async (event, { version, filePath }: { version: string; filePath: string }) => {
+  const win = BrowserWindow.fromWebContents(event.sender)
+  const filename = getInstallerFilename(version)
+  const url = `https://github.com/Shikhar16078/Snipper/releases/download/v${version}/${filename}`
+  try {
+    await downloadWithProgress(url, filePath, (percent) => {
+      win?.webContents.send('updates:event', { type: 'installer-progress', percent })
+    })
+    return { ok: true }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Download failed'
+    return { ok: false, message }
+  }
 })
 ipcMain.handle('titlebar:doubleclick', (event) => {
   const win = BrowserWindow.fromWebContents(event.sender)
