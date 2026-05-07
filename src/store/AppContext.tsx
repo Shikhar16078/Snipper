@@ -27,6 +27,7 @@ declare global {
     | { type: 'download-progress'; percent: number }
     | { type: 'downloaded'; version: string }
     | { type: 'error'; message: string }
+    | { type: 'installer-progress'; percent: number }
 
   interface Window {
     api?: {
@@ -43,6 +44,8 @@ declare global {
         check: () => Promise<{ ok: boolean }>
         download: () => Promise<{ ok: boolean }>
         install: () => Promise<{ ok: boolean }>
+        chooseSavePath: (version: string) => Promise<{ canceled: boolean; filePath?: string }>
+        downloadInstaller: (version: string, filePath: string) => Promise<{ ok: boolean; message?: string }>
         onEvent: (callback: (payload: UpdaterEventPayload) => void) => () => void
       }
     }

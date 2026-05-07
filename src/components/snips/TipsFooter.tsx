@@ -15,6 +15,7 @@ export const TIP_CATEGORIES: TipCategory[] = [
       'Press N anywhere to quickly create a new snip.',
       'Toggle between grid and list view with the view buttons.',
       'Click the expand icon in the toolbar to reveal all card content at once.',
+      'Open Settings from the gear icon in the toolbar to change themes, configure trash, and toggle preferences.',
     ],
   },
   {
@@ -28,6 +29,9 @@ export const TIP_CATEGORIES: TipCategory[] = [
       'Drag any snip onto the Trash icon in the sidebar to delete it quickly.',
       'When a snip body contains a URL, a Visit button appears to open it in your browser.',
       'Press Cmd+S (or Ctrl+S) in the editor to save without closing it.',
+      'In the editor, the right panel lists every URL in your snip — set a custom display title for each link.',
+      'The editor side panel can be resized by dragging its left edge, or hidden with the toggle button.',
+      'Navigating away from the editor with unsaved changes will prompt you to save or discard.',
     ],
   },
   {
@@ -40,15 +44,32 @@ export const TIP_CATEGORIES: TipCategory[] = [
       'In Edit Mode, drag folders to reorder or nest them within other folders.',
       'In Edit Mode, add separators between folders to organize your sidebar.',
       'Drag the sidebar divider to resize it, or click the panel icon to collapse.',
+      'Type a folder name in the sidebar search bar, then press Enter or click + to create it instantly.',
+      'The Trash icon shows a count badge when items are waiting to be reviewed or recovered.',
     ],
   },
   {
     title: 'Search & Navigation',
-    description: 'Find snips fast and customize your workspace.',
+    description: 'Find snips fast and navigate your workspace.',
     tips: [
       'Use Cmd+F or Ctrl+F to search snips by name or content.',
       'Press Escape to clear the search bar.',
       'Hover "All Snips" in the sidebar to rename that view label.',
+      'Type in the sidebar folder search to filter folders by name in real time.',
+      'Use the Previous and Next buttons at the bottom of Help Center to browse tip categories.',
+    ],
+  },
+  {
+    title: 'Trash & Recovery',
+    description: 'Recover deleted snips and folders, or clean up for good.',
+    tips: [
+      'Deleted snips and folders move to Trash — nothing is permanently lost until you choose.',
+      'Click Recover on any trashed item to restore it to its original folder.',
+      'Recover All restores every item in Trash at once.',
+      'Empty Trash permanently deletes all items — this cannot be undone.',
+      'Set Trash to auto-empty in Settings — choose 1 day, 7 days, or a fully custom duration.',
+      'Trashed folder cards show a preview of the snips that were inside them.',
+      'Use Cmd+F or Ctrl+F inside Trash to search through deleted items.',
     ],
   },
 ]

@@ -305,7 +305,7 @@ function TrashedSnipCard({ item, expanded }: { item: TrashedSnip; expanded: bool
           if (linksRef.current?.contains(e.target as Node)) return
           copy(item.snip.body)
         }}
-        className={`relative group select-none rounded-xl border transition-all duration-500 ease-in-out cursor-pointer
+        className={`relative group select-none rounded-xl border transition-all duration-500 ease-in-out cursor-pointer flex flex-col
           ${linksOpen ? 'z-20' : ''}
           ${copied
             ? 'border-green-500/50 bg-green-500/5 ring-1 ring-green-500/20'
@@ -322,8 +322,8 @@ function TrashedSnipCard({ item, expanded }: { item: TrashedSnip; expanded: bool
           </span>
         </div>
 
-        <div className="p-3">
-          <div className={`transition-[filter,opacity] duration-500 ease-in-out ${copied ? 'blur-[4px] opacity-20' : ''}`}>
+        <div className="p-3 flex flex-col flex-1">
+          <div className={`flex flex-col flex-1 transition-[filter,opacity] duration-500 ease-in-out ${copied ? 'blur-[4px] opacity-20' : ''}`}>
             {/* Header */}
             <div className="flex items-start justify-between gap-2 mb-2.5">
               <h3 className="text-sm font-semibold leading-snug text-fg truncate">{item.snip.name}</h3>
@@ -336,7 +336,7 @@ function TrashedSnipCard({ item, expanded }: { item: TrashedSnip; expanded: bool
             </p>
 
             {/* Footer row: purge label + Links + Recover + Delete */}
-            <div className="mt-3 pt-2.5 border-t border-border/60 flex items-center gap-1.5">
+            <div className="mt-auto pt-2.5 border-t border-border/60 flex items-center gap-1.5">
               {purgeDue && (
                 <span className={`text-[10px] font-medium border rounded-md px-1.5 py-0.5 ${
                   purgeDue.urgent
@@ -488,8 +488,8 @@ function TrashedFolderCard({ item }: { item: TrashedFolder }) {
 
   return (
     <>
-      <div className="select-none rounded-xl border border-border bg-panel hover:border-fg/25 hover:shadow-md transition-all cursor-default">
-        <div className="p-3">
+      <div className="select-none rounded-xl border border-border bg-panel hover:border-fg/25 hover:shadow-md transition-all cursor-default flex flex-col">
+        <div className="p-3 flex flex-col flex-1">
           <div className="flex items-center gap-2 min-w-0 mb-2.5">
             <svg className="w-4 h-4 flex-shrink-0 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
@@ -513,7 +513,7 @@ function TrashedFolderCard({ item }: { item: TrashedFolder }) {
           )}
 
           {/* Action buttons */}
-          <div className="mt-3 pt-2.5 border-t border-border/60 flex items-center gap-1.5">
+          <div className="mt-auto pt-2.5 border-t border-border/60 flex items-center gap-1.5">
             {purgeDue && (
               <span className={`text-[10px] font-medium ${purgeDue.urgent ? 'text-red-400' : 'text-orange-400'}`}>
                 {purgeDue.label}

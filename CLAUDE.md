@@ -60,6 +60,8 @@ interface AppState {
   isEditMode: boolean              // sidebar edit/organize mode
   deleteConfirmEnabled: boolean    // show confirm dialog before deleting
   holdAction: 'edit' | 'copy'     // what holding a snip card does
+  trashAutoPurge: number | null    // null = off, number = ms TTL for trash items
+  autoUpdateEnabled: boolean       // run background update check on launch
 }
 ```
 
@@ -72,6 +74,7 @@ ADD_FOLDER / RENAME_FOLDER / DELETE_FOLDER / REORDER_FOLDER / SELECT_FOLDER
 ADD_SNIP / EDIT_SNIP / DELETE_SNIP / MOVE_SNIP
 SET_VIEW_MODE / SET_THEME / SET_ALL_SNIPS_LABEL
 SET_TIPS_ENABLED / SET_DELETE_CONFIRM_ENABLED / SET_HOLD_ACTION / TOGGLE_EDIT_MODE
+SET_TRASH_AUTO_PURGE / SET_AUTO_UPDATE_ENABLED / PURGE_EXPIRED_TRASH
 ADD_DIVIDER / MOVE_DIVIDER / REMOVE_DIVIDER
 RESTORE_TRASH_ITEM / RESTORE_ALL_TRASH / PERMANENTLY_DELETE_TRASH_ITEM / EMPTY_TRASH
 LOAD_STATE
@@ -119,14 +122,15 @@ Sidebar header and all main-panel navbars are `h-[40px]` on Mac. Sidebar header 
 
 ## Main Panel Views
 
-`App.tsx` renders one of four views in the main panel based on state:
+`App.tsx` renders one of five views in the main panel based on state:
 
 1. **`SnipEditorView` (create)** — when `createOpen === true`
 2. **`SnipEditorView` (edit)** — when `editTarget !== null`
 3. **`TrashView`** — when `trashOpen === true`
-4. **`SnipGrid`** — default
+4. **`HelpView`** — when `helpOpen === true`
+5. **`SnipGrid`** — default
 
-The `N` shortcut sets `createOpen = true`. Clicking Edit on a snip card sets `editTarget`. Clicking trash in the sidebar sets `trashOpen`. Navigating to any folder via sidebar always closes trash (via `useEffect` on `selectedFolderId`).
+The `N` shortcut sets `createOpen = true`. Clicking Edit on a snip card sets `editTarget`. Clicking trash in the sidebar sets `trashOpen`. The Help Center is opened from Settings gear → Help Center. Navigating to any folder via sidebar always closes trash (via `useEffect` on `selectedFolderId`).
 
 **Navigation guard:** All folder and trash clicks go through gating functions in App.tsx (`requestSelectFolder`, `toggleTrash`). If the editor is open with unsaved changes (`editorRef.current?.isDirty`), a `pendingNav` state is set and a dialog appears (Save & Leave / Keep Editing / Discard) instead of navigating. If the editor is open but clean, navigation closes the editor and proceeds immediately. `editorRef` is a `useRef<SnipEditorHandle>` attached to whichever `SnipEditorView` is active.
 
@@ -230,20 +234,27 @@ When a snip body contains one or more URLs, each URL is rendered as an action bu
 
 ## Settings Gear
 
-`src/components/ui/Settings.tsx` — gear icon in the SnipGrid/TrashView/SnipEditorView navbar. Uses a two-view dropdown (`'main'` | `'themes'`):
+`src/components/ui/Settings.tsx` — gear icon in the SnipGrid/TrashView/SnipEditorView/HelpView navbar. Uses a three-view dropdown (`'main'` | `'themes'` | `'purge'`):
 
 **Main view:**
 
 - Theme row (shows current theme label, chevron → opens themes submenu)
+- Auto-empty trash row (shows current duration, chevron → opens purge submenu)
 - Tips toggle
 - Delete prompt toggle
 - Hold action toggle (`'edit'` = hold to edit / `'copy'` = hold to copy)
+- Auto update checks toggle (`autoUpdateEnabled`)
+- Check for updates row (left: "Check for updates" button; right: `v{version} ↓` download button when update available)
+- Copy trust command button (macOS only) — copies `sudo xattr -cr /Applications/Snipper.app`
+- Progress bar when installer is downloading; "Saved!" message when done
+- Help Center entry (hidden when already in HelpView)
 - About entry (opens `AboutModal`)
 
-**Themes view:**
+**Themes view:** Back button + Default / Light / Dark groups, all 11 themes, checkmark on active.
 
-- Back button
-- Default / Light / Dark groups, all 11 themes, checkmark on active
+**Purge view:** Back button + Never / 1 hour / 7 days presets + custom duration input (number + unit select). Max 60 min or 24 hr enforced with flash warning.
+
+**Update flow (macOS):** Check triggers `updates:check` IPC → `available` event sets `availableVersion` → user clicks download → `updates:choose-save-path` opens native save dialog → `updates:download-installer` streams file with `installer-progress` events → progress bar → "Saved!" message. No Squirrel/auto-install involved.
 
 ## About Modal
 
@@ -280,8 +291,8 @@ Child folders (`depth>0`) use `paddingLeft: 8px` + `marginLeft: ${depth * 14}px`
 
 ```text
 electron/
-  main.ts          # BrowserWindow, IPC (loadData, saveData, shell:openUrl)
-  preload.ts       # contextBridge → window.api
+  main.ts          # BrowserWindow, IPC (loadData, saveData, shell:openUrl, updates:*, titlebar:doubleclick, window:drag-*)
+  preload.ts       # contextBridge → window.api (platform, loadData, saveData, openUrl, titlebarDoubleClick, drag*, updates{})
 src/
   App.tsx          # Root: sidebar + main panel routing (editor/trash/grid)
   types/index.ts   # All interfaces and types
@@ -314,6 +325,8 @@ src/
       TipsFooter.tsx
     trash/
       TrashView.tsx      # Trash navbar + TrashedSnipCard + TrashedFolderCard
+    help/
+      HelpView.tsx       # Help Center: category sidebar, searchable tips, prev/next nav
     modals/
       Modal.tsx          # Backdrop, Escape, focus trap
       AboutModal.tsx     # App info + version + link to patch notes
