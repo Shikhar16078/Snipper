@@ -4,20 +4,24 @@ import { AppProvider, useApp } from './store/AppContext'
 import { DragProvider } from './context/DragContext'
 import { Sidebar } from './components/sidebar/Sidebar'
 import { SnipGrid } from './components/snips/SnipGrid'
-import { SnipEditorView } from './components/snips/SnipEditorView'
+import { SnipEditorView, type SnipEditorHandle } from './components/snips/SnipEditorView'
 import { TrashView } from './components/trash/TrashView'
+
+type PendingNav = { type: 'folder'; id: string | null } | { type: 'trash' }
 
 const SIDEBAR_MIN = 200
 const SIDEBAR_MAX = 420
 const SIDEBAR_DEFAULT = 210
 
 function AppShell() {
-  const { state } = useApp()
+  const { state, dispatch } = useApp()
   const [createOpen, setCreateOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<Snip | null>(null)
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT)
   const [collapsed, setCollapsed] = useState(false)
   const [trashOpen, setTrashOpen] = useState(false)
+  const [pendingNav, setPendingNav] = useState<PendingNav | null>(null)
+  const editorRef = useRef<SnipEditorHandle>(null)
   const widthBeforeCollapse = useRef(SIDEBAR_DEFAULT)
   const isResizing = useRef(false)
 
@@ -146,8 +150,44 @@ function AppShell() {
     setTrashOpen(false)
   }, [state.selectedFolderId])
 
+  const isEditorOpen = createOpen || editTarget !== null
+
+  function requestSelectFolder(id: string | null) {
+    if (isEditorOpen && editorRef.current?.isDirty) {
+      setPendingNav({ type: 'folder', id })
+      return
+    }
+    if (isEditorOpen) {
+      setCreateOpen(false)
+      setEditTarget(null)
+    }
+    dispatch({ type: 'SELECT_FOLDER', payload: { id } })
+    setTrashOpen(false)
+  }
+
   function toggleTrash() {
+    if (isEditorOpen && editorRef.current?.isDirty) {
+      setPendingNav({ type: 'trash' })
+      return
+    }
+    if (isEditorOpen) {
+      setCreateOpen(false)
+      setEditTarget(null)
+    }
     setTrashOpen((v) => !v)
+  }
+
+  function executePendingNav(save: boolean) {
+    if (save) editorRef.current?.save()
+    setCreateOpen(false)
+    setEditTarget(null)
+    if (pendingNav?.type === 'folder') {
+      dispatch({ type: 'SELECT_FOLDER', payload: { id: pendingNav.id } })
+      setTrashOpen(false)
+    } else if (pendingNav?.type === 'trash') {
+      setTrashOpen(true)
+    }
+    setPendingNav(null)
   }
 
   function openEditor(snip: Snip) {
@@ -173,7 +213,7 @@ function AppShell() {
         }}
       >
         <div style={{ width: sidebarWidth }} className="h-full">
-          <Sidebar onCollapse={toggleCollapse} trashOpen={trashOpen} onTrashClick={toggleTrash} />
+          <Sidebar onCollapse={toggleCollapse} trashOpen={trashOpen} onTrashClick={toggleTrash} onSelectFolder={requestSelectFolder} />
         </div>
       </div>
 
@@ -186,6 +226,36 @@ function AppShell() {
         <div className="absolute inset-0 bg-border group-hover:bg-accent/40 transition-colors cursor-ew-resize" />
       </div>
 
+      {/* Unsaved-changes nav guard */}
+      {pendingNav && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-[2px]">
+          <div className="bg-panel border border-border rounded-2xl shadow-2xl p-5 w-80 animate-pop">
+            <h3 className="text-sm font-semibold text-fg mb-1">Unsaved changes</h3>
+            <p className="text-xs text-muted mb-5">You have unsaved changes. Save before leaving?</p>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => executePendingNav(true)}
+                className="px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors bg-accent/10 text-accent border-accent/25 hover:bg-accent/20 hover:border-accent/50"
+              >
+                Save & Leave
+              </button>
+              <button
+                onClick={() => setPendingNav(null)}
+                className="px-3 py-1.5 text-xs font-medium text-fg-2 hover:text-fg rounded-lg border border-border hover:border-fg/30 hover:bg-fg/8 transition-colors"
+              >
+                Keep Editing
+              </button>
+              <button
+                onClick={() => executePendingNav(false)}
+                className="px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors bg-red-500/10 text-red-500 border-red-500/25 hover:bg-red-500/20 hover:border-red-500/50"
+              >
+                Discard
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Main panel */}
       <div className="flex-1 overflow-hidden relative">
         <div
@@ -194,6 +264,7 @@ function AppShell() {
         >
           {createOpen ? (
             <SnipEditorView
+              ref={editorRef}
               mode="create"
               initialFolderId={state.selectedFolderId ?? ''}
               collapsed={collapsed}
@@ -202,6 +273,7 @@ function AppShell() {
             />
           ) : editTarget ? (
             <SnipEditorView
+              ref={editorRef}
               mode="edit"
               snip={editTarget}
               collapsed={collapsed}

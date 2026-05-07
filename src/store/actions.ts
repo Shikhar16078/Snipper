@@ -6,7 +6,7 @@ export type Action =
   | { type: 'DELETE_FOLDER'; payload: { id: string } }
   | { type: 'REORDER_FOLDER'; payload: { sourceId: string; afterId: string | null; parentId: string | null } }
   | { type: 'SELECT_FOLDER'; payload: { id: string | null } }
-  | { type: 'ADD_SNIP'; payload: { folderId: string; name: string; body: string; linkTitles?: Record<string, string> } }
+  | { type: 'ADD_SNIP'; payload: { id?: string; folderId: string; name: string; body: string; linkTitles?: Record<string, string> } }
   | { type: 'EDIT_SNIP'; payload: { id: string; name: string; body: string; folderId: string; linkTitles?: Record<string, string> } }
   | { type: 'DELETE_SNIP'; payload: { id: string } }
   | { type: 'MOVE_SNIP'; payload: { id: string; folderId: string } }

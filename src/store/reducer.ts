@@ -115,7 +115,7 @@ export function reducer(state: AppState, action: Action): AppState {
         snips: [
           ...state.snips,
           {
-            id: generateId(),
+            id: action.payload.id ?? generateId(),
             folderId: action.payload.folderId,
             name: action.payload.name,
             body: action.payload.body,

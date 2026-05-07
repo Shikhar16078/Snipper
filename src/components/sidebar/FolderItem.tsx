@@ -11,9 +11,10 @@ interface FolderItemProps {
   isSelected: boolean
   depth: number
   onNavigate?: () => void
+  onSelect?: (id: string | null) => void
 }
 
-export function FolderItem({ folder, isSelected, depth, onNavigate }: FolderItemProps) {
+export function FolderItem({ folder, isSelected, depth, onNavigate, onSelect }: FolderItemProps) {
   const { state, dispatch } = useApp()
   const { draggingSnipId, draggingFolderId, setDraggingFolderId } = useDrag()
   const [isExpanded, setIsExpanded] = useState(true)
@@ -130,7 +131,16 @@ export function FolderItem({ folder, isSelected, depth, onNavigate }: FolderItem
               ? 'bg-accent/10 text-accent'
               : 'text-fg-2 hover:text-fg hover:bg-fg/6'
         }`}
-        onClick={() => { if (!isRenaming) { dispatch({ type: 'SELECT_FOLDER', payload: { id: folder.id } }); onNavigate?.() } }}
+        onClick={() => {
+          if (!isRenaming) {
+            if (onSelect) {
+              onSelect(folder.id)
+            } else {
+              dispatch({ type: 'SELECT_FOLDER', payload: { id: folder.id } })
+              onNavigate?.()
+            }
+          }
+        }}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
@@ -286,6 +296,7 @@ export function FolderItem({ folder, isSelected, depth, onNavigate }: FolderItem
           isSelected={state.selectedFolderId === child.id}
           depth={depth + 1}
           onNavigate={onNavigate}
+          onSelect={onSelect}
         />
       ))}
 
