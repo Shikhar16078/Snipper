@@ -476,36 +476,42 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
         </div>
       )}
 
-      {/* ── Cards ── */}
-      {displaySnips.length === 0 ? (
-        <EmptyState
-          onAdd={onAdd}
-          isSearching={!!q}
-          isFiltering={(hasFilters || starFilter) && !q}
-          onClearFilters={clearFilters}
-        />
-      ) : (
-        <div
-          className="flex-1 overflow-y-auto p-4"
-          onMouseDown={(e) => {
-            if (e.detail >= 2 && (e.target === e.currentTarget || (e.target as HTMLElement).tagName === 'DIV')) {
-              const target = e.target as HTMLElement
-              if (!target.closest('p, h2, h3, span, button, input, textarea, .snip-card')) {
-                e.preventDefault()
-              }
-            }
-          }}
-        >
-          <div
-            className={state.viewMode === 'grid' ? 'grid gap-3' : 'flex flex-col gap-2'}
-            style={state.viewMode === 'grid' ? { gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' } : undefined}
-          >
-            {displaySnips.map((snip) => (
-              <SnipCard key={snip.id} snip={snip} onEdit={onEdit} expanded={expandAll} />
-            ))}
-          </div>
+      {/* ── Main content ── */}
+      <div className="flex-1 min-h-0 flex overflow-hidden">
+        <div className="flex-1 min-w-0">
+          {displaySnips.length === 0 ? (
+            <EmptyState
+              onAdd={onAdd}
+              isSearching={!!q}
+              isFiltering={(hasFilters || starFilter) && !q}
+              onClearFilters={clearFilters}
+              tagName={!q && !hasFilters && !starFilter && selectedTag ? selectedTag.name : undefined}
+            />
+          ) : (
+            <div
+              className="flex-1 overflow-y-auto p-4 h-full"
+              onMouseDown={(e) => {
+                if (e.detail >= 2 && (e.target === e.currentTarget || (e.target as HTMLElement).tagName === 'DIV')) {
+                  const target = e.target as HTMLElement
+                  if (!target.closest('p, h2, h3, span, button, input, textarea, .snip-card')) {
+                    e.preventDefault()
+                  }
+                }
+              }}
+            >
+              <div
+                className={state.viewMode === 'grid' ? 'grid gap-3' : 'flex flex-col gap-2'}
+                style={state.viewMode === 'grid' ? { gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' } : undefined}
+              >
+                {displaySnips.map((snip) => (
+                  <SnipCard key={snip.id} snip={snip} onEdit={onEdit} expanded={expandAll} />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-      )}
+
+      </div>
 
       {/* ── Tips footer ── */}
       <TipsFooter visible={state.tipsEnabled} />

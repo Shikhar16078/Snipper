@@ -30,6 +30,7 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [linksOpen, setLinksOpen] = useState(false)
   const [moveSearch, setMoveSearch] = useState('')
+  const [tagSearch, setTagSearch] = useState('')
   const [isDragging, setIsDragging] = useState(false)
   const [holdProgress, setHoldProgress] = useState(0)
   const [isHovered, setIsHovered] = useState(false)
@@ -38,6 +39,7 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
   const kebabRef = useRef<HTMLButtonElement>(null)
   const linksRef = useRef<HTMLDivElement>(null)
   const moveSearchRef = useRef<HTMLInputElement>(null)
+  const tagSearchRef = useRef<HTMLInputElement>(null)
   const holdActive = useRef(false)
   const holdRafRef = useRef<number | null>(null)
   const holdStartTime = useRef(0)
@@ -72,6 +74,14 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
       if (key === 'e') { e.preventDefault(); onEdit(snip) }
       else if (key === 'c') { e.preventDefault(); handleCopy() }
       else if (key === 's') { e.preventDefault(); dispatch({ type: 'TOGGLE_PIN_SNIP', payload: { id: snip.id } }) }
+      else if (key === 't') {
+        e.preventDefault()
+        const ref = kebabRef.current ?? cardRef.current
+        if (ref) {
+          const rect = ref.getBoundingClientRect()
+          openMenu(rect.right - 176, rect.bottom + 4, 'tags')
+        }
+      }
       else if (key === 'd') {
         e.preventDefault()
         if (state.deleteConfirmEnabled) setDeleteConfirmOpen(true)
@@ -93,16 +103,34 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
     return () => document.removeEventListener('mousedown', onOutside)
   }, [menuOpen])
 
-  function openMenu(x: number, y: number) {
+  function openMenu(x: number, y: number, initialView: 'main' | 'move' | 'tags' = 'main') {
     const clampedX = Math.min(x, window.innerWidth - 164)
     const clampedY = Math.min(y, window.innerHeight - 220)
     setMenuPos({ x: Math.max(4, clampedX), y: Math.max(4, clampedY) })
+    document.dispatchEvent(new CustomEvent('snipper:menu-open', { detail: { snipId: snip.id } }))
     setMenuOpen(true)
-    setMenuView('main')
+    setMenuView(initialView)
   }
 
   useEffect(() => {
-    if (!menuOpen) { setMenuView('main'); setMoveSearch('') }
+    function onOtherMenu(e: CustomEvent<{ snipId: string }>) {
+      if (e.detail.snipId !== snip.id) setMenuOpen(false)
+    }
+    document.addEventListener('snipper:menu-open', onOtherMenu as EventListener)
+    return () => document.removeEventListener('snipper:menu-open', onOtherMenu as EventListener)
+  }, [snip.id])
+
+  useEffect(() => {
+    if (!menuOpen) { setMenuView('main'); setMoveSearch(''); setTagSearch('') }
+  }, [menuOpen])
+
+  useEffect(() => {
+    if (!menuOpen) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') { e.preventDefault(); setMenuOpen(false) }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
   }, [menuOpen])
 
   useEffect(() => {
@@ -134,6 +162,8 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
   useEffect(() => {
     if (menuView === 'move') setTimeout(() => moveSearchRef.current?.focus(), 0)
     else setMoveSearch('')
+    if (menuView === 'tags') setTimeout(() => tagSearchRef.current?.focus(), 0)
+    else setTagSearch('')
   }, [menuView])
 
   function startHold(e: React.MouseEvent) {
@@ -290,32 +320,30 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
             {snip.body}
           </p>
 
-          {/* Tag pills */}
-          {snip.tagIds && snip.tagIds.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-2" onClick={(e) => e.stopPropagation()}>
-              {snip.tagIds.slice(0, 4).map((tid) => {
-                const tag = state.tags.find((t) => t.id === tid)
-                if (!tag) return null
-                return (
-                  <button
-                    key={tid}
-                    onClick={() => dispatch({ type: 'SELECT_TAG', payload: { id: tid } })}
-                    className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium transition-opacity hover:opacity-80"
-                    style={{ backgroundColor: tag.color + '22', color: tag.color }}
-                  >
-                    <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: tag.color }} />
-                    {tag.name}
-                  </button>
-                )
-              })}
-              {snip.tagIds.length > 4 && (
-                <span className="text-[10px] text-muted self-center">+{snip.tagIds.length - 4}</span>
-              )}
-            </div>
-          )}
-
           {/* Bottom section — pinned to bottom via mt-auto */}
           <div className="mt-auto">
+            {/* Tag pills — anchored above links/kebab */}
+            {snip.tagIds && snip.tagIds.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-2 mb-1">
+                {snip.tagIds.slice(0, 4).map((tid) => {
+                  const tag = state.tags.find((t) => t.id === tid)
+                  if (!tag) return null
+                  return (
+                    <span
+                      key={tid}
+                      className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium pointer-events-none"
+                      style={{ backgroundColor: tag.color + '22', color: tag.color }}
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: tag.color }} />
+                      {tag.name}
+                    </span>
+                  )
+                })}
+                {snip.tagIds.length > 4 && (
+                  <span className="text-[10px] text-muted self-center pointer-events-none">+{snip.tagIds.length - 4}</span>
+                )}
+              </div>
+            )}
             {links.length > 0 ? (
               /* Links row: Visit/Links button on left, kebab on right */
               <div
@@ -506,36 +534,60 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
                 </svg>
                 <span className="font-medium">Tags</span>
               </button>
+              {state.tags.length > 0 && (
+                <div className="px-2 pb-1.5">
+                  <div className="relative">
+                    <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    <input
+                      ref={tagSearchRef}
+                      type="text"
+                      value={tagSearch}
+                      onChange={(e) => setTagSearch(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Escape') setMenuView('main') }}
+                      placeholder="Search tags…"
+                      className="w-full bg-surface border border-border rounded-md pl-6 pr-2 py-1 text-[11px] text-fg placeholder-muted focus:outline-none focus:border-accent transition-colors"
+                    />
+                  </div>
+                </div>
+              )}
               <div className="border-t border-border mx-2 mb-1" />
               {state.tags.length === 0 ? (
                 <p className="px-3 py-2 text-[10px] text-muted">No tags yet. Create tags from the sidebar.</p>
-              ) : (
-                <div className="max-h-48 overflow-y-auto">
-                  {state.tags.map((tag) => {
-                    const hasTag = snip.tagIds?.includes(tag.id) ?? false
-                    return (
-                      <button
-                        key={tag.id}
-                        onClick={() => {
-                          const next = hasTag
-                            ? (snip.tagIds ?? []).filter((id) => id !== tag.id)
-                            : [...(snip.tagIds ?? []), tag.id]
-                          dispatch({ type: 'SET_SNIP_TAGS', payload: { snipId: snip.id, tagIds: next } })
-                        }}
-                        className="w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 hover:bg-fg/5 transition-colors"
-                      >
-                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: tag.color }} />
-                        <span className="flex-1 truncate text-fg-2">{tag.name}</span>
-                        {hasTag && (
-                          <svg className="w-3 h-3 flex-shrink-0 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                          </svg>
-                        )}
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
+              ) : (() => {
+                const tq = tagSearch.trim().toLowerCase()
+                const filteredTags = tq ? state.tags.filter((t) => t.name.toLowerCase().includes(tq)) : state.tags
+                return filteredTags.length === 0 ? (
+                  <p className="px-3 py-2 text-[10px] text-muted">No tags found</p>
+                ) : (
+                  <div className="max-h-48 overflow-y-auto">
+                    {filteredTags.map((tag) => {
+                      const hasTag = snip.tagIds?.includes(tag.id) ?? false
+                      return (
+                        <button
+                          key={tag.id}
+                          onClick={() => {
+                            const next = hasTag
+                              ? (snip.tagIds ?? []).filter((id) => id !== tag.id)
+                              : [...(snip.tagIds ?? []), tag.id]
+                            dispatch({ type: 'SET_SNIP_TAGS', payload: { snipId: snip.id, tagIds: next } })
+                          }}
+                          className="w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 hover:bg-fg/5 transition-colors"
+                        >
+                          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: tag.color }} />
+                          <span className="flex-1 truncate text-fg-2">{tag.name}</span>
+                          {hasTag && (
+                            <svg className="w-3 h-3 flex-shrink-0 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )
+              })()}
             </>
           ) : (
             <>

@@ -85,6 +85,7 @@ export const SnipEditorView = forwardRef<SnipEditorHandle, SnipEditorViewProps>(
   const [linkTitles, setLinkTitles] = useState<Record<string, string>>(() => mode === 'edit' && snip ? (snip.linkTitles ?? {}) : {})
   const [currentTagIds, setCurrentTagIds] = useState<string[]>(() => mode === 'edit' && snip ? (snip.tagIds ?? []) : [])
   const [savedTagIds, setSavedTagIds] = useState<string[]>(() => mode === 'edit' && snip ? (snip.tagIds ?? []) : [])
+  const [tagSearch, setTagSearch] = useState('')
   const [internalEditSnip, setInternalEditSnip] = useState<Snip | null>(null)
 
   const effectiveSnip = snip ?? internalEditSnip
@@ -397,27 +398,45 @@ export const SnipEditorView = forwardRef<SnipEditorHandle, SnipEditorViewProps>(
           {state.tags.length > 0 && (
             <section className="flex-shrink-0 rounded-xl border border-border bg-panel p-3">
               <label className="block text-[10px] font-semibold tracking-wide uppercase text-muted mb-2">Tags</label>
+              <div className="relative mb-2">
+                <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input
+                  type="text"
+                  value={tagSearch}
+                  onChange={(e) => setTagSearch(e.target.value)}
+                  placeholder="Search tags…"
+                  className="w-full bg-surface border border-border rounded-md pl-6 pr-2 py-1 text-[11px] text-fg placeholder-muted focus:outline-none focus:border-accent transition-colors"
+                />
+              </div>
               <div className="space-y-0.5">
-                {state.tags.map((tag) => {
-                  const isChecked = currentTagIds.includes(tag.id)
-                  return (
-                    <button
-                      key={tag.id}
-                      onClick={() => setCurrentTagIds((prev) =>
-                        isChecked ? prev.filter((id) => id !== tag.id) : [...prev, tag.id]
-                      )}
-                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors hover:bg-fg/5"
-                    >
-                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: tag.color }} />
-                      <span className={`flex-1 truncate text-left ${isChecked ? 'text-fg font-medium' : 'text-fg-2'}`}>{tag.name}</span>
-                      {isChecked && (
-                        <svg className="w-3 h-3 flex-shrink-0 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                        </svg>
-                      )}
-                    </button>
-                  )
-                })}
+                {(() => {
+                  const tq = tagSearch.trim().toLowerCase()
+                  const filtered = tq ? state.tags.filter((t) => t.name.toLowerCase().includes(tq)) : state.tags
+                  return filtered.length === 0 ? (
+                    <p className="text-[11px] text-muted px-1">No tags found</p>
+                  ) : filtered.map((tag) => {
+                    const isChecked = currentTagIds.includes(tag.id)
+                    return (
+                      <button
+                        key={tag.id}
+                        onClick={() => setCurrentTagIds((prev) =>
+                          isChecked ? prev.filter((id) => id !== tag.id) : [...prev, tag.id]
+                        )}
+                        className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors hover:bg-fg/5"
+                      >
+                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: tag.color }} />
+                        <span className={`flex-1 truncate text-left ${isChecked ? 'text-fg font-medium' : 'text-fg-2'}`}>{tag.name}</span>
+                        {isChecked && (
+                          <svg className="w-3 h-3 flex-shrink-0 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </button>
+                    )
+                  })
+                })()}
               </div>
             </section>
           )}
