@@ -668,7 +668,7 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
                     </svg>
                     <div className="min-w-0">
                       <p className="text-xs font-semibold text-amber-400">Nothing starred yet</p>
-                      <p className="text-[11px] text-muted leading-relaxed">Open any snip in the editor and click ★ to star it.</p>
+                      <p className="text-[11px] text-muted leading-relaxed">Star a snip to have it show up here separately.</p>
                     </div>
                   </div>
                   <div
