@@ -662,12 +662,12 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
               {starredSnips.length === 0 ? (
                 /* ── Nothing starred: banner + all snips ── */
                 <>
-                  <div className="flex items-center gap-3 mb-4 px-3.5 py-2.5 rounded-xl bg-amber-400/8 border border-amber-400/20">
-                    <svg className="w-4 h-4 text-amber-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="flex items-center gap-3 mb-4 px-3.5 py-2.5 rounded-xl bg-accent/8 border border-accent/20">
+                    <svg className="w-4 h-4 text-accent flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
                     </svg>
                     <div className="min-w-0">
-                      <p className="text-xs font-semibold text-amber-400">Nothing starred yet</p>
+                      <p className="text-xs font-semibold text-accent">Nothing starred yet</p>
                       <p className="text-[11px] text-muted leading-relaxed">Star a snip to have it show up here separately.</p>
                     </div>
                   </div>
