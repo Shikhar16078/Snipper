@@ -653,104 +653,132 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
             <EmptyState
               onAdd={onAdd}
               isSearching={!!q}
-              isStarred={starFilter && !q && !hasFilters}
               isFiltering={hasFilters && !q}
               onClearFilters={clearFilters}
               tagName={!q && !hasFilters && !starFilter && selectedTag ? selectedTag.name : undefined}
             />
           ) : starFilter ? (
-            /* ── Starred / Not Starred grouped view ── */
-            <div className="flex-1 overflow-y-auto p-4 h-full space-y-4">
-              {/* Starred section */}
-              <div>
-                <button
-                  onClick={() => setStarSectionOpen((v) => !v)}
-                  className="flex items-center gap-2 mb-2.5 group w-full text-left"
-                >
-                  <svg
-                    className={`w-3 h-3 text-muted transition-transform duration-150 ${starSectionOpen ? 'rotate-90' : ''}`}
-                    fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
-                  </svg>
-                  <svg className="w-3.5 h-3.5 text-amber-400" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-                  </svg>
-                  <span className="text-xs font-semibold text-fg-2 group-hover:text-fg transition-colors">Starred</span>
-                  <span className="text-[10px] text-muted tabular-nums">{starredSnips.length}</span>
-                </button>
-                {starSectionOpen && (
-                  starredSnips.length === 0 ? (
-                    <p className="text-xs text-muted pl-5 pb-1">Nothing starred yet — open a snip in the editor and click the star.</p>
-                  ) : (
-                    <div
-                      className={state.viewMode === 'grid' ? 'grid gap-3' : 'flex flex-col gap-2'}
-                      style={state.viewMode === 'grid' ? { gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' } : undefined}
-                    >
-                      {starredSnips.map((snip) => (
-                        <SnipCard
-                          key={snip.id}
-                          snip={snip}
-                          onEdit={onEdit}
-                          expanded={expandAll}
-                          selected={selectedSnipIds.has(snip.id)}
-                          isSelectionMode={isSelectionMode}
-                          onToggleSelect={toggleSnipSelection}
-                          onBulkContextMenu={(x, y) => setBulkContextPos({ x, y })}
-                          bulkDragIds={isSelectionMode && selectedSnipIds.has(snip.id) ? [...selectedSnipIds] : undefined}
-                        />
-                      ))}
+            <div className="flex-1 overflow-y-auto p-4 h-full">
+              {starredSnips.length === 0 ? (
+                /* ── Nothing starred: banner + all snips ── */
+                <>
+                  <div className="flex items-center gap-3 mb-4 px-3.5 py-2.5 rounded-xl bg-amber-400/8 border border-amber-400/20">
+                    <svg className="w-4 h-4 text-amber-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                    </svg>
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-amber-400">Nothing starred yet</p>
+                      <p className="text-[11px] text-muted leading-relaxed">Open any snip in the editor and click ★ to star it.</p>
                     </div>
-                  )
-                )}
-              </div>
-
-              {/* Divider */}
-              <div className="border-t border-border" />
-
-              {/* Not starred section */}
-              <div>
-                <button
-                  onClick={() => setUnstarSectionOpen((v) => !v)}
-                  className="flex items-center gap-2 mb-2.5 group w-full text-left"
-                >
-                  <svg
-                    className={`w-3 h-3 text-muted transition-transform duration-150 ${unstarSectionOpen ? 'rotate-90' : ''}`}
-                    fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                  </div>
+                  <div
+                    className={state.viewMode === 'grid' ? 'grid gap-3' : 'flex flex-col gap-2'}
+                    style={state.viewMode === 'grid' ? { gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' } : undefined}
                   >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
-                  </svg>
-                  <svg className="w-3.5 h-3.5 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-                  </svg>
-                  <span className="text-xs font-semibold text-fg-2 group-hover:text-fg transition-colors">Not Starred</span>
-                  <span className="text-[10px] text-muted tabular-nums">{unstarredSnips.length}</span>
-                </button>
-                {unstarSectionOpen && (
-                  unstarredSnips.length === 0 ? (
-                    <p className="text-xs text-muted pl-5 pb-1">All snips here are starred.</p>
-                  ) : (
-                    <div
-                      className={state.viewMode === 'grid' ? 'grid gap-3' : 'flex flex-col gap-2'}
-                      style={state.viewMode === 'grid' ? { gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' } : undefined}
+                    {unstarredSnips.map((snip) => (
+                      <SnipCard
+                        key={snip.id}
+                        snip={snip}
+                        onEdit={onEdit}
+                        expanded={expandAll}
+                        selected={selectedSnipIds.has(snip.id)}
+                        isSelectionMode={isSelectionMode}
+                        onToggleSelect={toggleSnipSelection}
+                        onBulkContextMenu={(x, y) => setBulkContextPos({ x, y })}
+                        bulkDragIds={isSelectionMode && selectedSnipIds.has(snip.id) ? [...selectedSnipIds] : undefined}
+                      />
+                    ))}
+                  </div>
+                </>
+              ) : (
+                /* ── Has starred items: two collapsible sections ── */
+                <div className="space-y-4">
+                  {/* Starred section */}
+                  <div>
+                    <button
+                      onClick={() => setStarSectionOpen((v) => !v)}
+                      className="flex items-center gap-2 mb-2.5 group w-full text-left"
                     >
-                      {unstarredSnips.map((snip) => (
-                        <SnipCard
-                          key={snip.id}
-                          snip={snip}
-                          onEdit={onEdit}
-                          expanded={expandAll}
-                          selected={selectedSnipIds.has(snip.id)}
-                          isSelectionMode={isSelectionMode}
-                          onToggleSelect={toggleSnipSelection}
-                          onBulkContextMenu={(x, y) => setBulkContextPos({ x, y })}
-                          bulkDragIds={isSelectionMode && selectedSnipIds.has(snip.id) ? [...selectedSnipIds] : undefined}
-                        />
-                      ))}
-                    </div>
-                  )
-                )}
-              </div>
+                      <svg
+                        className={`w-3 h-3 text-muted transition-transform duration-150 ${starSectionOpen ? 'rotate-90' : ''}`}
+                        fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                      </svg>
+                      <svg className="w-3.5 h-3.5 text-amber-400" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                      </svg>
+                      <span className="text-xs font-semibold text-fg-2 group-hover:text-fg transition-colors">Starred</span>
+                      <span className="text-[10px] text-muted tabular-nums">{starredSnips.length}</span>
+                    </button>
+                    {starSectionOpen && (
+                      <div
+                        className={state.viewMode === 'grid' ? 'grid gap-3' : 'flex flex-col gap-2'}
+                        style={state.viewMode === 'grid' ? { gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' } : undefined}
+                      >
+                        {starredSnips.map((snip) => (
+                          <SnipCard
+                            key={snip.id}
+                            snip={snip}
+                            onEdit={onEdit}
+                            expanded={expandAll}
+                            selected={selectedSnipIds.has(snip.id)}
+                            isSelectionMode={isSelectionMode}
+                            onToggleSelect={toggleSnipSelection}
+                            onBulkContextMenu={(x, y) => setBulkContextPos({ x, y })}
+                            bulkDragIds={isSelectionMode && selectedSnipIds.has(snip.id) ? [...selectedSnipIds] : undefined}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {unstarredSnips.length > 0 && (
+                    <>
+                      <div className="border-t border-border" />
+                      {/* Not starred section */}
+                      <div>
+                        <button
+                          onClick={() => setUnstarSectionOpen((v) => !v)}
+                          className="flex items-center gap-2 mb-2.5 group w-full text-left"
+                        >
+                          <svg
+                            className={`w-3 h-3 text-muted transition-transform duration-150 ${unstarSectionOpen ? 'rotate-90' : ''}`}
+                            fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                          </svg>
+                          <svg className="w-3.5 h-3.5 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                          </svg>
+                          <span className="text-xs font-semibold text-fg-2 group-hover:text-fg transition-colors">Not Starred</span>
+                          <span className="text-[10px] text-muted tabular-nums">{unstarredSnips.length}</span>
+                        </button>
+                        {unstarSectionOpen && (
+                          <div
+                            className={state.viewMode === 'grid' ? 'grid gap-3' : 'flex flex-col gap-2'}
+                            style={state.viewMode === 'grid' ? { gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' } : undefined}
+                          >
+                            {unstarredSnips.map((snip) => (
+                              <SnipCard
+                                key={snip.id}
+                                snip={snip}
+                                onEdit={onEdit}
+                                expanded={expandAll}
+                                selected={selectedSnipIds.has(snip.id)}
+                                isSelectionMode={isSelectionMode}
+                                onToggleSelect={toggleSnipSelection}
+                                onBulkContextMenu={(x, y) => setBulkContextPos({ x, y })}
+                                bulkDragIds={isSelectionMode && selectedSnipIds.has(snip.id) ? [...selectedSnipIds] : undefined}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           ) : (
             /* ── Normal flat view ── */
