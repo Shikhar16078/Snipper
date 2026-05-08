@@ -1,5 +1,19 @@
 [
   {
+    "version": "1.3.0",
+    "date": "May 7, 2026",
+    "changes": [
+      "Tags: create colored labels and assign them to snips for cross-folder organization — click any tag in the sidebar to filter your view",
+      "Multi-select: activate Selection Mode to pick multiple snip cards and bulk Move, Tag, or Delete them in one action",
+      "Drag selected cards as a group onto a folder, tag, or Trash in the sidebar — a confirmation step appears before the action is applied",
+      "Right-click any card in Selection Mode to open the full bulk actions menu for all selected snips",
+      "Drag any snip directly onto a tag row in the sidebar to assign that tag instantly",
+      "Tag pills appear on snip cards below the body — click a pill to jump straight to that tag view",
+      "Assign and manage tags per snip from the new Tags section in the editor right panel",
+      "Reorder tags in the sidebar via drag and drop in Edit Mode"
+    ]
+  },
+  {
     "version": "1.2.0",
     "date": "May 7, 2026",
     "changes": [

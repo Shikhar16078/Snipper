@@ -40,9 +40,17 @@ Group your snippets into folders and subfolders. Create as many levels as you ne
 
 Search across all your snippets by name or content from the top search bar (`Cmd/Ctrl+F`). Results update as you type.
 
+### 🏷️ Tags
+
+Create colored labels and assign them to snips for cross-folder organization. Click any tag in the sidebar to instantly filter your view to snips carrying that label — across every folder. Snips can have multiple tags. Tag pills appear on cards and are clickable for fast navigation. Assign tags from the editor's right panel or by dragging a card directly onto a tag in the sidebar.
+
+### ☑️ Multi-Select
+
+Activate Selection Mode (grid-plus icon in the toolbar) to pick multiple snip cards at once and apply bulk operations: **Move** to a folder, **Assign a Tag**, or **Delete** — all in one step. Right-click any card in selection mode for the bulk context menu. Drag the whole selection as a group and drop it onto a folder, tag, or Trash in the sidebar; a confirmation dialog appears before anything is applied.
+
 ### ➕ Drag & Drop
 
-Move snippets between folders by dragging them. In Organize mode, drag folders themselves to reorder them in the sidebar. Add custom separators between folders to create visual groups — those are draggable too.
+Move snippets between folders by dragging them. Drag onto a tag in the sidebar to assign it instantly. In Organize mode, drag folders themselves to reorder them in the sidebar. Add custom separators between folders to create visual groups — those are draggable too.
 
 ### 🎨 11 Themes
 
@@ -92,10 +100,11 @@ Everything is stored as a plain JSON file on your own machine. Nothing is sent t
 | `N` | New snippet |
 | `Cmd/Ctrl + F` | Focus search |
 | `Cmd/Ctrl + S` | Save in editor |
-| `Escape` | Close editor / clear search |
+| `Escape` | Close editor / clear search / exit selection |
 | `E` (hover card) | Open snippet in editor |
 | `C` (hover card) | Copy snippet to clipboard |
 | `D` (hover card) | Delete snippet |
+| `Enter` (discard prompt) | Confirm discard selection |
 
 ---
 

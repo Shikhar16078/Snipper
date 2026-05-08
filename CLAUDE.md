@@ -40,8 +40,9 @@ loaded = { ...initialState, ...(await window.api.loadData()) }
 
 ```ts
 interface Folder   { id, name, parentId: string | null, createdAt }
-interface Snip     { id, folderId, name, body, linkTitles?: Record<string, string>, createdAt, updatedAt }
+interface Snip     { id, folderId, name, body, linkTitles?: Record<string, string>, tagIds?: string[], createdAt, updatedAt }
 interface Divider  { id, afterFolderId: string | null }  // null = before all root folders
+interface Tag      { id, name, color: string }           // color is hex from the fixed palette
 
 interface TrashedSnip   { id, type: 'snip', deletedAt, snip: Snip }
 interface TrashedFolder { id, type: 'folder', deletedAt, folders: Folder[], snips: Snip[], dividers: Divider[] }
@@ -51,8 +52,10 @@ interface AppState {
   folders: Folder[]
   snips: Snip[]
   dividers: Divider[]              // sidebar separators
+  tags: Tag[]                      // colored cross-folder labels
   trash: TrashedItem[]             // soft-deleted items
   selectedFolderId: string | null  // null = "All Snips"
+  selectedTagId: string | null     // when set, grid shows snips matching this tag
   viewMode: 'grid' | 'list'
   theme: Theme
   allSnipsLabel: string            // renameable "All Snips" label
@@ -67,11 +70,16 @@ interface AppState {
 
 `linkTitles` maps detected URLs in the snip body to custom display labels. Only non-default, non-empty titles are stored. The reducer sanitizes via `sanitizeLinkTitles()` on every add/edit.
 
+`tagIds` on a snip holds the IDs of assigned tags. Optional — absence means no tags.
+
+**Tag color palette** (`TAG_COLORS` exported from `src/types/index.ts`): 9 fixed hex values — red `#ef4444`, orange `#f97316`, amber `#f59e0b`, green `#22c55e`, teal `#14b8a6`, blue `#3b82f6`, violet `#8b5cf6`, pink `#ec4899`, slate `#64748b`.
+
 ## Actions
 
 ```text
 ADD_FOLDER / RENAME_FOLDER / DELETE_FOLDER / REORDER_FOLDER / SELECT_FOLDER
 ADD_SNIP / EDIT_SNIP / DELETE_SNIP / MOVE_SNIP
+ADD_TAG / EDIT_TAG / DELETE_TAG / REORDER_TAG / SELECT_TAG / SET_SNIP_TAGS
 SET_VIEW_MODE / SET_THEME / SET_ALL_SNIPS_LABEL
 SET_TIPS_ENABLED / SET_DELETE_CONFIRM_ENABLED / SET_HOLD_ACTION / TOGGLE_EDIT_MODE
 SET_TRASH_AUTO_PURGE / SET_AUTO_UPDATE_ENABLED / PURGE_EXPIRED_TRASH
@@ -87,6 +95,10 @@ LOAD_STATE
 - `ADD_FOLDER` auto-selects the new folder.
 - `TOGGLE_EDIT_MODE` flips `isEditMode` boolean.
 - `REORDER_FOLDER` — `{ sourceId, afterId, parentId }`: removes source from array, updates its `parentId`, inserts after `afterId` (or at start of `parentId` group if `afterId` is null). Guards against moving a folder into its own descendants.
+- `SELECT_TAG` sets `selectedTagId` and clears `selectedFolderId`. `SELECT_FOLDER` clears `selectedTagId`.
+- `DELETE_TAG` removes the tag from `state.tags`, scrubs its ID from every snip's `tagIds`, and resets `selectedTagId` if it was the deleted tag.
+- `SET_SNIP_TAGS` — `{ snipId, tagIds }`: replaces the full `tagIds` array on a single snip.
+- `REORDER_TAG` — `{ sourceId, afterId }`: moves a tag after the specified tag ID (or to the front if `afterId` is null).
 
 ## Theming
 
@@ -195,13 +207,78 @@ Same logic handles cross-parent moves: dropping a folder before/after a folder w
 
 ## DragContext
 
-`src/context/DragContext.tsx` tracks three independent drag states:
+`src/context/DragContext.tsx` tracks five independent drag states:
 
-- `draggingSnipId` / `setDraggingSnipId` — snip card → folder drop
+- `draggingSnipId` / `setDraggingSnipId` — single snip card being dragged
+- `draggingSnipIds` / `setDraggingSnipIds` — all snip IDs in an active bulk drag (selection mode)
 - `draggingDividerId` / `setDraggingDividerId` — separator repositioning
 - `draggingFolderId` / `setDraggingFolderId` — folder reordering (edit mode only)
+- `draggingTagId` / `setDraggingTagId` — tag reordering in sidebar (edit mode only)
 
-All are null when no drag is active. Each drag type checks its own context value and does not interfere with the others.
+All are null/empty when no drag is active. Each drag type checks its own context value and does not interfere with the others.
+
+**Important:** Drop handlers must read snip IDs from `e.dataTransfer.getData('text/plain')` (single) or `'application/json'` (bulk), not from DragContext — React state may not have updated by the time `dragover` fires, causing stale reads. Use `e.dataTransfer.types.includes('text/plain')` in `dragover` handlers to synchronously detect a snip drag.
+
+**`effectAllowed` / `dropEffect` contract:** SnipCard sets `effectAllowed = 'move'` in `dragstart`. All drop targets (`FolderItem`, tag rows, trash) must set `dropEffect = 'move'` (not `'copy'`) in their `dragover` handlers — a mismatch silently prevents the `drop` event from firing.
+
+## Tags
+
+Tags are cross-folder colored labels. `state.tags` is an ordered array; `state.selectedTagId` drives filtering in `SnipGrid`.
+
+**Sidebar:** Tags section renders between "Unfiled" row and folder tree. Always visible when `state.tags.length > 0` or `isEditMode`. Each tag row:
+
+- Colored dot (6px, `tag.color`) + name + snip count badge
+- Click → `SELECT_TAG` (clears `selectedFolderId`)
+- Selected highlight uses the tag's own color (`backgroundColor: tag.color + '18'`, left border in `tag.color`)
+- Snip drag-over highlight: `backgroundColor: tag.color + '22'` + `boxShadow` ring
+- Edit mode: pencil (inline rename) + color dot (9-swatch popover) + trash icon
+- Reorder by drag in edit mode; `REORDER_TAG { sourceId, afterId }` on drop
+
+**Grid:** When `selectedTagId` is set, `viewSnips` filters `state.snips` to those with `tagIds?.includes(selectedTagId)`. Title badge shows a colored dot + tag name.
+
+**SnipCard:** Tag pills render below the body when `snip.tagIds?.length > 0`. Pills: small dot + name, colored by tag. Clicking a pill dispatches `SELECT_TAG`. Capped at 4 pills with a `+N` overflow badge.
+
+**SnipEditorView:** Tags section in the right panel (between Folder and Links). Shows assigned tags as removable pills. "+ Add tag" button opens an inline popover with search and a create-new-tag row. `tagIds` is included in dirty tracking and save payload.
+
+**Drag snip → tag row:** `onDragOver` checks `e.dataTransfer.types.includes('text/plain')`, sets `dropEffect = 'move'`. `onDrop` reads bulk IDs from `'application/json'` (fires `snipper:bulk-drop-pending` custom event) or single ID from `'text/plain'` (dispatches `SET_SNIP_TAGS` directly with `new Set` deduplication).
+
+## Multi-Select
+
+Selection mode lets users pick multiple snip cards and apply bulk Move / Tag / Delete in one step.
+
+**Activation:** Grid-plus icon button in SnipGrid toolbar toggles `isSelectionMode`.
+
+**Selection UX:**
+
+- Click (mouseup) on a card toggles it in/out of `selectedSnipIds`. No action taken on mousedown.
+- Selected card: `border-accent bg-accent/[0.06]` — accent border + subtle tint. No checkbox dot.
+- Action bar replaces footer when `isSelectionMode`: shows count, Select All, Deselect All, Move, Tag, Delete, Cancel buttons.
+
+**Escape flow (two-level):**
+
+1. If a bulk modal is open → close it (stay in selection mode)
+2. If `discardConfirmOpen` → close confirm (stay in selection mode)
+3. Otherwise → `requestExitSelectionMode()`: if cards selected → show "Discard selection?" confirm; if none selected → exit immediately
+4. On the discard confirm: Enter = `exitSelectionMode()`, Escape = keep selecting
+
+**Bulk context menu:** Right-click any card in selection mode → auto-selects that card if not already selected → shows fixed-position popup with Move / Tag / Delete for all selected.
+
+**Bulk drag:**
+
+- `draggable` is always `true` on SnipCard (not gated by `isSelectionMode`).
+- If `isSelectionMode && selected && bulkDragIds.length > 1`: sets `draggingSnipIds` in DragContext, writes all IDs to `'application/json'` dataTransfer, shows stacked ghost pill with count badge.
+- All selected cards dim (`opacity-40`) during drag via `isInBulkDrag = draggingSnipIds.includes(snip.id)`.
+- Drop handlers fire `snipper:bulk-drop-pending` custom event with `{ type, snipIds, ... }`.
+- `SnipGrid` listens for `snipper:bulk-drop-pending` → sets `pendingBulkDrop` state → renders confirmation modal before dispatching any actions.
+
+**`PendingBulkDrop` type** (defined in SnipGrid):
+
+```ts
+type PendingBulkDrop =
+  | { type: 'move';   snipIds: string[]; folderId: string; folderName: string }
+  | { type: 'tag';    snipIds: string[]; tagId: string; tagName: string; tagColor: string }
+  | { type: 'delete'; snipIds: string[] }
+```
 
 ## Trash System
 
@@ -304,7 +381,7 @@ src/
     reducer.ts     # Pure reducer
     initialState.ts
   context/
-    DragContext.tsx # draggingSnipId + draggingDividerId + draggingFolderId
+    DragContext.tsx # draggingSnipId + draggingSnipIds + draggingDividerId + draggingFolderId + draggingTagId
   hooks/
     useCopyToClipboard.ts
   utils/
