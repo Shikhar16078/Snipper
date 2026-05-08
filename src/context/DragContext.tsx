@@ -7,6 +7,8 @@ interface DragContextValue {
   setDraggingDividerId: (id: string | null) => void
   draggingFolderId: string | null
   setDraggingFolderId: (id: string | null) => void
+  draggingTagId: string | null
+  setDraggingTagId: (id: string | null) => void
 }
 
 const DragContext = createContext<DragContextValue>({
@@ -16,6 +18,8 @@ const DragContext = createContext<DragContextValue>({
   setDraggingDividerId: () => {},
   draggingFolderId: null,
   setDraggingFolderId: () => {},
+  draggingTagId: null,
+  setDraggingTagId: () => {},
 })
 
 export const useDrag = () => useContext(DragContext)
@@ -24,6 +28,7 @@ export function DragProvider({ children }: { children: React.ReactNode }) {
   const [draggingSnipId, setDraggingSnipId] = useState<string | null>(null)
   const [draggingDividerId, setDraggingDividerId] = useState<string | null>(null)
   const [draggingFolderId, setDraggingFolderId] = useState<string | null>(null)
+  const [draggingTagId, setDraggingTagId] = useState<string | null>(null)
 
   return (
     <DragContext.Provider value={{
@@ -32,7 +37,9 @@ export function DragProvider({ children }: { children: React.ReactNode }) {
       draggingDividerId,
       setDraggingDividerId,
       draggingFolderId,
-      setDraggingFolderId
+      setDraggingFolderId,
+      draggingTagId,
+      setDraggingTagId,
     }}>
       {children}
     </DragContext.Provider>

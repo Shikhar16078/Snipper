@@ -37,4 +37,5 @@ export type Action =
   | { type: 'DELETE_TAG';    payload: { id: string } }
   | { type: 'SELECT_TAG';    payload: { id: string | null } }
   | { type: 'SET_SNIP_TAGS'; payload: { snipId: string; tagIds: string[] } }
+  | { type: 'REORDER_TAG';   payload: { sourceId: string; afterId: string | null } }
   | { type: 'LOAD_STATE'; payload: AppState }

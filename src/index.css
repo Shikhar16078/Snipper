@@ -461,3 +461,33 @@ html.dark.dark-nebula {
   animation: update-card-enter 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
   will-change: transform, opacity;
 }
+
+/* Color picker sliders used in TagEditorModal */
+.color-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  outline: none;
+  border: none;
+}
+.color-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: white;
+  border: 2px solid rgba(0, 0, 0, 0.15);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+}
+.color-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: white;
+  border: 2px solid rgba(0, 0, 0, 0.15);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+}

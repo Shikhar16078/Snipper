@@ -140,6 +140,22 @@ export function reducer(state: AppState, action: Action): AppState {
         snips: state.snips.map((s) => s.id === action.payload.snipId ? { ...s, tagIds: action.payload.tagIds } : s),
       }
 
+    case 'REORDER_TAG': {
+      const { sourceId, afterId } = action.payload
+      if (sourceId === afterId) return state
+      const tags = [...state.tags]
+      const sourceIdx = tags.findIndex(t => t.id === sourceId)
+      if (sourceIdx === -1) return state
+      const [moved] = tags.splice(sourceIdx, 1)
+      if (afterId === null) {
+        tags.unshift(moved)
+      } else {
+        const afterIdx = tags.findIndex(t => t.id === afterId)
+        tags.splice(afterIdx + 1, 0, moved)
+      }
+      return { ...state, tags }
+    }
+
     case 'ADD_SNIP':
       return {
         ...state,
