@@ -22,7 +22,6 @@ export function AddSnipModal({ open, onClose }: AddSnipModalProps) {
       <SnipForm
         initialValues={{ name: '', body: '', folderId: defaultFolderId, linkTitles: {} }}
         folders={state.folders}
-        allSnipsLabel={state.allSnipsLabel || 'All Snips'}
         onSubmit={handleSubmit}
         onCancel={onClose}
         submitLabel="Add Snip"

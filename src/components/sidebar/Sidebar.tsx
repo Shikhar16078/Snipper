@@ -16,7 +16,7 @@ interface SidebarProps {
 
 export function Sidebar({ onCollapse, trashOpen, onTrashClick, onSelectFolder }: SidebarProps) {
   const { state, dispatch } = useApp()
-  const { draggingSnipId, draggingSnipIds, setDraggingSnipIds, draggingTagId, setDraggingTagId } = useDrag()
+  const { draggingTagId, setDraggingTagId } = useDrag()
   const [trashDragOver, setTrashDragOver] = useState(false)
   const [renamingAll, setRenamingAll] = useState(false)
   const [renameValue, setRenameValue] = useState('')
@@ -52,7 +52,7 @@ export function Sidebar({ onCollapse, trashOpen, onTrashClick, onSelectFolder }:
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Enter') {
         e.preventDefault()
-        dispatch({ type: 'DELETE_TAG', payload: { id: confirmDeleteTagId } })
+        dispatch({ type: 'DELETE_TAG', payload: { id: confirmDeleteTagId! } })
         setConfirmDeleteTagId(null)
       } else if (e.key === 'Escape') {
         e.preventDefault()

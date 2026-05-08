@@ -16,7 +16,7 @@ interface FolderItemProps {
 
 export function FolderItem({ folder, isSelected, depth, onNavigate, onSelect }: FolderItemProps) {
   const { state, dispatch } = useApp()
-  const { draggingSnipId, draggingSnipIds, setDraggingSnipIds, draggingFolderId, setDraggingFolderId } = useDrag()
+  const { draggingSnipId, draggingFolderId, setDraggingFolderId } = useDrag()
   const [isExpanded, setIsExpanded] = useState(true)
   const [isRenaming, setIsRenaming] = useState(false)
   const [renameValue, setRenameValue] = useState(folder.name)

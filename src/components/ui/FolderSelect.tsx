@@ -82,7 +82,7 @@ export function FolderSelect({ folders, value, onChange }: FolderSelectProps) {
                 onChange={(e) => setSearch(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Escape') setIsOpen(false)
-                  if (e.key === 'Enter' && filtered.length === 1 && !showAllSnipsOption) select(filtered[0].folder.id)
+                  if (e.key === 'Enter' && filtered.length === 1 && !showUnfiledOption) select(filtered[0].folder.id)
                 }}
                 placeholder="Search folders…"
                 className="w-full bg-surface border border-border rounded-md pl-7 pr-3 py-1.5 text-xs text-fg placeholder-muted focus:outline-none focus:border-accent transition-colors"

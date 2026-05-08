@@ -16,13 +16,12 @@ interface SnipFormValues {
 interface SnipFormProps {
   initialValues: SnipFormValues
   folders: Folder[]
-  allSnipsLabel?: string
   onSubmit: (values: SnipFormValues) => void
   onCancel: () => void
   submitLabel?: string
 }
 
-export function SnipForm({ initialValues, folders, allSnipsLabel, onSubmit, onCancel, submitLabel = 'Save' }: SnipFormProps) {
+export function SnipForm({ initialValues, folders, onSubmit, onCancel, submitLabel = 'Save' }: SnipFormProps) {
   const [name, setName] = useState(initialValues.name)
   const [body, setBody] = useState(initialValues.body)
   const [folderId, setFolderId] = useState(initialValues.folderId)
@@ -78,7 +77,7 @@ export function SnipForm({ initialValues, folders, allSnipsLabel, onSubmit, onCa
 
       <div>
         <label className="block text-[11px] font-semibold tracking-wide uppercase text-muted mb-1.5">Folder</label>
-        <FolderSelect folders={folders} value={folderId} onChange={setFolderId} allSnipsLabel={allSnipsLabel} />
+        <FolderSelect folders={folders} value={folderId} onChange={setFolderId} />
       </div>
 
       {detectedLinks.length > 0 && (
