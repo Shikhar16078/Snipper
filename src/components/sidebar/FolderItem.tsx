@@ -16,7 +16,7 @@ interface FolderItemProps {
 
 export function FolderItem({ folder, isSelected, depth, onNavigate, onSelect }: FolderItemProps) {
   const { state, dispatch } = useApp()
-  const { draggingSnipId, draggingFolderId, setDraggingFolderId } = useDrag()
+  const { draggingSnipId, draggingSnipIds, setDraggingSnipIds, draggingFolderId, setDraggingFolderId } = useDrag()
   const [isExpanded, setIsExpanded] = useState(true)
   const [isRenaming, setIsRenaming] = useState(false)
   const [renameValue, setRenameValue] = useState(folder.name)
@@ -64,7 +64,8 @@ export function FolderItem({ folder, isSelected, depth, onNavigate, onSelect }: 
   }
 
   function handleDragOver(e: React.DragEvent) {
-    if (!draggingSnipId && !draggingFolderId) return
+    const isSnipDrag = e.dataTransfer.types.includes('text/plain')
+    if (!isSnipDrag && !draggingFolderId) return
     if (draggingFolderId === folder.id) return // Can't drop on itself
     
     // Check if we are trying to drop on a descendant
@@ -88,7 +89,13 @@ export function FolderItem({ folder, isSelected, depth, onNavigate, onSelect }: 
     e.stopPropagation()
     setIsDragOver(false)
     
-    if (draggingSnipId) {
+    const bulkJson = e.dataTransfer.getData('application/json')
+    const bulkIds: string[] | null = bulkJson ? JSON.parse(bulkJson) : null
+    if (bulkIds && bulkIds.length > 0) {
+      document.dispatchEvent(new CustomEvent('snipper:bulk-drop-pending', {
+        detail: { type: 'move', snipIds: bulkIds, folderId: folder.id, folderName: folder.name }
+      }))
+    } else if (draggingSnipId) {
       const snipId = e.dataTransfer.getData('text/plain')
       if (snipId) dispatch({ type: 'MOVE_SNIP', payload: { id: snipId, folderId: folder.id } })
     } else if (draggingFolderId) {

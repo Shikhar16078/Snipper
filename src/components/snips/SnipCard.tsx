@@ -12,6 +12,11 @@ interface SnipCardProps {
   snip: Snip
   onEdit: (snip: Snip) => void
   expanded: boolean
+  selected?: boolean
+  isSelectionMode?: boolean
+  onToggleSelect?: (id: string) => void
+  onBulkContextMenu?: (x: number, y: number) => void
+  bulkDragIds?: string[]
 }
 
 const HOLD_DURATION = 200
@@ -20,10 +25,11 @@ const HOLD_DURATION = 200
 const mousePos = { x: -1, y: -1 }
 document.addEventListener('mousemove', (e) => { mousePos.x = e.clientX; mousePos.y = e.clientY }, { passive: true })
 
-export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
+export function SnipCard({ snip, onEdit, expanded, selected = false, isSelectionMode = false, onToggleSelect, onBulkContextMenu, bulkDragIds }: SnipCardProps) {
   const { state, dispatch } = useApp()
   const { copy, copied } = useCopyToClipboard(1500)
-  const { setDraggingSnipId } = useDrag()
+  const { setDraggingSnipId, setDraggingSnipIds, draggingSnipIds } = useDrag()
+  const isInBulkDrag = draggingSnipIds.includes(snip.id)
   const [menuOpen, setMenuOpen] = useState(false)
   const [menuView, setMenuView] = useState<'main' | 'move' | 'tags'>('main')
   const [menuPos, setMenuPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
@@ -171,6 +177,9 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
     if (kebabRef.current?.contains(e.target as Node)) return
     if (linksRef.current?.contains(e.target as Node)) return
 
+    if (isSelectionMode) return
+
+
     holdActive.current = true
     holdStartTime.current = performance.now()
 
@@ -208,6 +217,7 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
     if (holdSuppressClick.current) { holdSuppressClick.current = false; return }
     if (kebabRef.current?.contains(e.target as Node)) return
     if (linksRef.current?.contains(e.target as Node)) return
+    if (isSelectionMode) { onToggleSelect?.(snip.id); return }
     if (state.holdAction === 'copy') onEdit(snip)
     else handleCopy()
   }
@@ -216,28 +226,62 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
     cancelHold()
     e.dataTransfer.setData('text/plain', snip.id)
     e.dataTransfer.effectAllowed = 'move'
-    setDraggingSnipId(snip.id)
 
-    // Tiny pill ghost so the cursor stays visible over drop targets
-    const ghost = document.createElement('div')
-    ghost.style.cssText = [
-      'position:fixed', 'top:-9999px', 'left:0',
-      'display:flex', 'align-items:center', 'gap:6px',
-      'padding:5px 10px',
-      'background:rgb(var(--panel))',
-      'border:1px solid rgb(var(--accent) / 0.5)',
-      'border-radius:999px',
-      'font:600 11px/1.4 Inter,system-ui,sans-serif',
-      'color:rgb(var(--fg))',
-      'white-space:nowrap', 'max-width:200px',
-      'overflow:hidden', 'text-overflow:ellipsis',
-      'box-shadow:0 4px 12px rgba(0,0,0,0.25)',
-      'pointer-events:none',
-    ].join(';')
-    ghost.textContent = snip.name
-    document.body.appendChild(ghost)
-    e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, 16)
-    setTimeout(() => ghost.remove(), 0)
+    const isBulk = isSelectionMode && selected && bulkDragIds && bulkDragIds.length > 1
+
+    if (isBulk) {
+      setDraggingSnipIds(bulkDragIds!)
+      setDraggingSnipId(null)
+      e.dataTransfer.setData('application/json', JSON.stringify(bulkDragIds))
+
+      const ghost = document.createElement('div')
+      ghost.style.cssText = [
+        'position:fixed', 'top:-9999px', 'left:0',
+        'display:flex', 'align-items:center', 'gap:6px',
+        'padding:5px 12px',
+        'background:rgb(var(--panel))',
+        'border:1px solid rgb(var(--accent) / 0.5)',
+        'border-radius:999px',
+        'font:600 11px/1.4 Inter,system-ui,sans-serif',
+        'color:rgb(var(--fg))',
+        'white-space:nowrap',
+        'box-shadow:3px 3px 0 rgb(var(--border)),4px 4px 0 rgb(var(--accent)/0.25)',
+        'pointer-events:none',
+      ].join(';')
+      const badge = document.createElement('span')
+      badge.style.cssText = 'background:rgb(var(--accent));color:white;border-radius:999px;padding:1px 7px;font-size:10px;font-weight:700;'
+      badge.textContent = String(bulkDragIds!.length)
+      const label = document.createElement('span')
+      label.textContent = 'snips'
+      ghost.appendChild(badge)
+      ghost.appendChild(label)
+      document.body.appendChild(ghost)
+      e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, 18)
+      setTimeout(() => ghost.remove(), 0)
+    } else {
+      setDraggingSnipId(snip.id)
+      setDraggingSnipIds([])
+
+      const ghost = document.createElement('div')
+      ghost.style.cssText = [
+        'position:fixed', 'top:-9999px', 'left:0',
+        'display:flex', 'align-items:center', 'gap:6px',
+        'padding:5px 10px',
+        'background:rgb(var(--panel))',
+        'border:1px solid rgb(var(--accent) / 0.5)',
+        'border-radius:999px',
+        'font:600 11px/1.4 Inter,system-ui,sans-serif',
+        'color:rgb(var(--fg))',
+        'white-space:nowrap', 'max-width:200px',
+        'overflow:hidden', 'text-overflow:ellipsis',
+        'box-shadow:0 4px 12px rgba(0,0,0,0.25)',
+        'pointer-events:none',
+      ].join(';')
+      ghost.textContent = snip.name
+      document.body.appendChild(ghost)
+      e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, 16)
+      setTimeout(() => ghost.remove(), 0)
+    }
 
     requestAnimationFrame(() => setIsDragging(true))
   }
@@ -245,6 +289,7 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
   function handleDragEnd() {
     setIsDragging(false)
     setDraggingSnipId(null)
+    setDraggingSnipIds([])
   }
 
   return (
@@ -258,15 +303,25 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
       onMouseLeave={() => setIsHovered(false)}
       onMouseDown={startHold}
       onClick={handleCardClick}
-      onContextMenu={(e) => { e.preventDefault(); openMenu(e.clientX, e.clientY) }}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        if (isSelectionMode && onBulkContextMenu) {
+          if (!selected && onToggleSelect) onToggleSelect(snip.id)
+          onBulkContextMenu(e.clientX, e.clientY)
+        } else {
+          openMenu(e.clientX, e.clientY)
+        }
+      }}
       className={`snip-card relative group select-none rounded-xl border transition-all duration-500 ease-in-out
         ${linksOpen ? 'z-20' : ''}
-        ${isDragging ? 'opacity-40 scale-95 cursor-grabbing' : 'cursor-pointer'}
+        ${isDragging || isInBulkDrag ? 'opacity-40 scale-95 cursor-grabbing' : 'cursor-pointer'}
         ${copied
           ? 'border-green-500/50 bg-green-500/5 ring-1 ring-green-500/20'
-          : holdProgress > 0
-            ? 'border-accent/40 bg-panel'
-            : 'border-border bg-panel hover:border-fg/25 hover:shadow-md'
+          : selected
+            ? 'border-accent bg-accent/[0.06]'
+            : holdProgress > 0
+              ? 'border-accent/40 bg-panel'
+              : 'border-border bg-panel hover:border-fg/25 hover:shadow-md'
         }
       `}
       style={holdProgress > 0 && !copied ? { boxShadow: `0 0 0 1.5px rgb(var(--accent) / ${holdProgress * 0.5})` } : undefined}
@@ -278,6 +333,7 @@ export function SnipCard({ snip, onEdit, expanded }: SnipCardProps) {
           style={{ clipPath: `circle(${holdProgress * 100}% at 50% 50%)` }}
         />
       </div>
+
 
       {/* Copied overlay */}
       <div

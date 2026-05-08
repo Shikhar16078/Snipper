@@ -1,11 +1,18 @@
 import { useState, useRef, useEffect } from 'react'
 import type { Snip, Folder, SnipSort } from '../../types'
+
+type PendingBulkDrop =
+  | { type: 'move'; snipIds: string[]; folderId: string; folderName: string }
+  | { type: 'tag';  snipIds: string[]; tagId: string; tagName: string; tagColor: string }
+  | { type: 'trash'; snipIds: string[] }
 import { useApp } from '../../store/AppContext'
 import { flattenFolders } from '../../utils/folders'
 import { SnipCard } from './SnipCard'
 import { EmptyState } from './EmptyState'
 import { Settings } from '../ui/Settings'
 import { TipsFooter } from './TipsFooter'
+import { Modal } from '../modals/Modal'
+import { Button } from '../ui/Button'
 
 const SORT_OPTIONS: { value: SnipSort; label: string }[] = [
   { value: 'updated', label: 'Last modified' },
@@ -75,6 +82,39 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
   const [filterFolderIds, setFilterFolderIds] = useState<Set<string>>(new Set())
   const [folderSearch, setFolderSearch] = useState('')
 
+  // Multi-select
+  const [isSelectionMode, setIsSelectionMode] = useState(false)
+  const [selectedSnipIds, setSelectedSnipIds] = useState<Set<string>>(new Set())
+  const [bulkModal, setBulkModal] = useState<'move' | 'tag' | 'delete' | null>(null)
+  const [bulkMoveSearch, setBulkMoveSearch] = useState('')
+  const [bulkTagSearch, setBulkTagSearch] = useState('')
+  const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false)
+  const [pendingBulkDrop, setPendingBulkDrop] = useState<PendingBulkDrop | null>(null)
+  const [bulkContextPos, setBulkContextPos] = useState<{ x: number; y: number } | null>(null)
+  const bulkContextRef = useRef<HTMLDivElement>(null)
+
+  function exitSelectionMode() {
+    setIsSelectionMode(false)
+    setSelectedSnipIds(new Set())
+    setBulkModal(null)
+    setDiscardConfirmOpen(false)
+    setPendingBulkDrop(null)
+  }
+
+  function requestExitSelectionMode() {
+    if (selectedSnipIds.size > 0) setDiscardConfirmOpen(true)
+    else exitSelectionMode()
+  }
+
+  function toggleSnipSelection(id: string) {
+    setSelectedSnipIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
   const searchRef = useRef<HTMLInputElement>(null)
   const sortRef = useRef<HTMLDivElement>(null)
   const filterRef = useRef<HTMLDivElement>(null)
@@ -96,6 +136,49 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
     document.addEventListener('mousedown', onOutside)
     return () => document.removeEventListener('mousedown', onOutside)
   }, [filterOpen])
+
+  useEffect(() => {
+    if (!bulkContextPos) return
+    function onOutside(e: MouseEvent) {
+      if (bulkContextRef.current && !bulkContextRef.current.contains(e.target as Node)) setBulkContextPos(null)
+    }
+    document.addEventListener('mousedown', onOutside)
+    return () => document.removeEventListener('mousedown', onOutside)
+  }, [bulkContextPos])
+
+  // Exit selection mode when view changes
+  useEffect(() => { exitSelectionMode() }, [state.selectedFolderId, state.selectedTagId])
+
+  // Enter = Discard on the confirm dialog
+  useEffect(() => {
+    if (!discardConfirmOpen) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Enter') { e.preventDefault(); exitSelectionMode() }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [discardConfirmOpen])
+
+  // Listen for bulk drop pending confirmation
+  useEffect(() => {
+    function onPending(e: Event) { setPendingBulkDrop((e as CustomEvent<PendingBulkDrop>).detail) }
+    document.addEventListener('snipper:bulk-drop-pending', onPending)
+    return () => document.removeEventListener('snipper:bulk-drop-pending', onPending)
+  }, [])
+
+  // Escape: close bulk modal first, then confirm-discard selection
+  useEffect(() => {
+    if (!isSelectionMode) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== 'Escape') return
+      if (bulkModal !== null) return          // modal handles its own Escape
+      if (pendingBulkDrop !== null) { setPendingBulkDrop(null); return }
+      if (discardConfirmOpen) { setDiscardConfirmOpen(false); return }
+      requestExitSelectionMode()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [isSelectionMode, bulkModal, pendingBulkDrop, discardConfirmOpen, selectedSnipIds])
 
   // Cmd/Ctrl+F focuses the search bar
   useEffect(() => {
@@ -434,6 +517,22 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
           </button>
         </div>
 
+        {/* Select */}
+        <button
+          onClick={() => { if (isSelectionMode) requestExitSelectionMode(); else setIsSelectionMode(true) }}
+          title={isSelectionMode ? 'Exit selection mode' : 'Select multiple snips'}
+          className={`p-1.5 rounded-md transition-colors app-no-drag ${
+            isSelectionMode ? 'text-accent bg-accent/10' : 'text-muted hover:text-fg hover:bg-fg/8'
+          }`}
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <rect x="3" y="3" width="7" height="7" rx="1" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+            <rect x="14" y="3" width="7" height="7" rx="1" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+            <rect x="3" y="14" width="7" height="7" rx="1" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 17.5h7M17.5 14v7" />
+          </svg>
+        </button>
+
         {/* New Snip */}
         <button
           onClick={onAdd}
@@ -447,6 +546,72 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
 
         <Settings onOpenHelp={onOpenHelp} onOpenImport={onOpenImport} onOpenExport={onOpenExport} />
       </div>
+
+      {/* ── Selection action bar ── */}
+      {isSelectionMode && (
+        <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-accent/5 flex-shrink-0">
+          <div className="flex items-center gap-2 text-xs">
+            <span className="font-semibold text-fg">{selectedSnipIds.size} selected</span>
+            <button
+              onClick={() => {
+                if (selectedSnipIds.size === displaySnips.length) {
+                  setSelectedSnipIds(new Set())
+                } else {
+                  setSelectedSnipIds(new Set(displaySnips.map((s) => s.id)))
+                }
+              }}
+              className="text-accent hover:underline"
+            >
+              {selectedSnipIds.size === displaySnips.length ? 'Deselect all' : 'Select all'}
+            </button>
+          </div>
+          <div className="flex-1" />
+          <button
+            onClick={() => { setBulkMoveSearch(''); setBulkModal('move') }}
+            disabled={selectedSnipIds.size === 0}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border border-border text-fg-2 hover:text-fg hover:bg-fg/8 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
+            </svg>
+            Move
+          </button>
+          <button
+            onClick={() => { setBulkTagSearch(''); setBulkModal('tag') }}
+            disabled={selectedSnipIds.size === 0}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border border-border text-fg-2 hover:text-fg hover:bg-fg/8 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5a1.99 1.99 0 011.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+            </svg>
+            Tag
+          </button>
+          <button
+            onClick={() => {
+              if (state.deleteConfirmEnabled) {
+                setBulkModal('delete')
+              } else {
+                for (const id of selectedSnipIds) dispatch({ type: 'DELETE_SNIP', payload: { id } })
+                exitSelectionMode()
+              }
+            }}
+            disabled={selectedSnipIds.size === 0}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border border-red-500/30 text-red-500 hover:bg-red-500/8 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4h6v3M3 7h18" />
+            </svg>
+            Delete
+          </button>
+          <div className="w-px h-4 bg-border flex-shrink-0" />
+          <button
+            onClick={requestExitSelectionMode}
+            className="px-2.5 py-1 rounded-lg text-xs font-medium text-muted hover:text-fg hover:bg-fg/8 transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
 
       {/* ── Active filter chips ── */}
       {hasFilters && (
@@ -504,7 +669,17 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
                 style={state.viewMode === 'grid' ? { gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' } : undefined}
               >
                 {displaySnips.map((snip) => (
-                  <SnipCard key={snip.id} snip={snip} onEdit={onEdit} expanded={expandAll} />
+                  <SnipCard
+                    key={snip.id}
+                    snip={snip}
+                    onEdit={onEdit}
+                    expanded={expandAll}
+                    selected={selectedSnipIds.has(snip.id)}
+                    isSelectionMode={isSelectionMode}
+                    onToggleSelect={toggleSnipSelection}
+                    onBulkContextMenu={(x, y) => setBulkContextPos({ x, y })}
+                    bulkDragIds={isSelectionMode && selectedSnipIds.has(snip.id) ? [...selectedSnipIds] : undefined}
+                  />
                 ))}
               </div>
             </div>
@@ -515,6 +690,262 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
 
       {/* ── Tips footer ── */}
       <TipsFooter visible={state.tipsEnabled} />
+
+      {/* ── Bulk Move modal ── */}
+      <Modal open={bulkModal === 'move'} onClose={() => setBulkModal(null)} title="Move to folder">
+        <div className="relative mb-3">
+          <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input
+            type="text"
+            value={bulkMoveSearch}
+            onChange={(e) => setBulkMoveSearch(e.target.value)}
+            placeholder="Search folders…"
+            autoFocus
+            className="w-full bg-surface border border-border rounded-lg pl-8 pr-3 py-1.5 text-xs text-fg placeholder-muted focus:outline-none focus:border-accent transition-colors"
+          />
+        </div>
+        {(() => {
+          const q = bulkMoveSearch.trim().toLowerCase()
+          const all = flattenFolders(state.folders)
+          const filtered = q ? all.filter(({ folder }) => folder.name.toLowerCase().includes(q)) : all
+          return filtered.length === 0 ? (
+            <p className="text-xs text-muted py-2">{state.folders.length === 0 ? 'No folders yet.' : 'No folders found.'}</p>
+          ) : (
+            <div className="max-h-52 overflow-y-auto -mx-1">
+              {filtered.map(({ folder, depth }) => (
+                <button
+                  key={folder.id}
+                  onClick={() => {
+                    for (const id of selectedSnipIds) dispatch({ type: 'MOVE_SNIP', payload: { id, folderId: folder.id } })
+                    exitSelectionMode()
+                  }}
+                  style={{ paddingLeft: `${8 + depth * 12}px` }}
+                  className="w-full text-left flex items-center gap-2 pr-3 py-1.5 rounded-lg text-xs text-fg-2 hover:text-fg hover:bg-fg/5 transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5 flex-shrink-0 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
+                  </svg>
+                  <span className="truncate">{folder.name}</span>
+                </button>
+              ))}
+            </div>
+          )
+        })()}
+      </Modal>
+
+      {/* ── Bulk Tag modal ── */}
+      <Modal open={bulkModal === 'tag'} onClose={() => setBulkModal(null)} title="Assign tags">
+        {state.tags.length > 0 && (
+          <div className="relative mb-3">
+            <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              type="text"
+              value={bulkTagSearch}
+              onChange={(e) => setBulkTagSearch(e.target.value)}
+              placeholder="Search tags…"
+              autoFocus
+              className="w-full bg-surface border border-border rounded-lg pl-8 pr-3 py-1.5 text-xs text-fg placeholder-muted focus:outline-none focus:border-accent transition-colors"
+            />
+          </div>
+        )}
+        {state.tags.length === 0 ? (
+          <p className="text-xs text-muted py-2">No tags yet. Create tags from the sidebar.</p>
+        ) : (() => {
+          const q = bulkTagSearch.trim().toLowerCase()
+          const filtered = q ? state.tags.filter((t) => t.name.toLowerCase().includes(q)) : state.tags
+          const selectedIds = [...selectedSnipIds]
+          return filtered.length === 0 ? (
+            <p className="text-xs text-muted py-2">No tags found.</p>
+          ) : (
+            <div className="max-h-52 overflow-y-auto -mx-1 mb-4">
+              {filtered.map((tag) => {
+                const hasCount = selectedIds.filter((id) => state.snips.find((s) => s.id === id)?.tagIds?.includes(tag.id)).length
+                const tagState: 'all' | 'none' | 'some' = hasCount === selectedIds.length ? 'all' : hasCount === 0 ? 'none' : 'some'
+                return (
+                  <button
+                    key={tag.id}
+                    onClick={() => {
+                      const addTag = tagState !== 'all'
+                      for (const snipId of selectedSnipIds) {
+                        const snip = state.snips.find((s) => s.id === snipId)
+                        if (!snip) continue
+                        const current = snip.tagIds ?? []
+                        const has = current.includes(tag.id)
+                        if (addTag && !has) dispatch({ type: 'SET_SNIP_TAGS', payload: { snipId, tagIds: [...current, tag.id] } })
+                        else if (!addTag && has) dispatch({ type: 'SET_SNIP_TAGS', payload: { snipId, tagIds: current.filter((id) => id !== tag.id) } })
+                      }
+                    }}
+                    className="w-full text-left flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-xs text-fg-2 hover:text-fg hover:bg-fg/5 transition-colors"
+                  >
+                    <div className={`w-4 h-4 rounded flex-shrink-0 border-2 flex items-center justify-center ${
+                      tagState === 'all' ? 'border-accent bg-accent' : tagState === 'some' ? 'border-accent bg-accent/20' : 'border-border'
+                    }`}>
+                      {tagState === 'all' && (
+                        <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                      {tagState === 'some' && <div className="w-1.5 h-0.5 bg-accent rounded-full" />}
+                    </div>
+                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: tag.color }} />
+                    <span className="flex-1 truncate">{tag.name}</span>
+                  </button>
+                )
+              })}
+            </div>
+          )
+        })()}
+        <div className="flex justify-end">
+          <Button onClick={() => setBulkModal(null)}>Done</Button>
+        </div>
+      </Modal>
+
+      {/* ── Bulk context menu ── */}
+      {bulkContextPos && (
+        <div
+          ref={bulkContextRef}
+          style={{
+            position: 'fixed',
+            left: Math.min(bulkContextPos.x, window.innerWidth - 176),
+            top: Math.min(bulkContextPos.y, window.innerHeight - 140),
+            zIndex: 9999,
+          }}
+          className="w-44 bg-panel border border-border rounded-xl shadow-xl py-1.5 animate-pop"
+        >
+          <div className="px-3 py-1 mb-0.5">
+            <span className="text-[10px] font-semibold tracking-widest uppercase text-muted">
+              {selectedSnipIds.size} selected
+            </span>
+          </div>
+          <div className="border-t border-border mx-2 mb-1" />
+          <button
+            onClick={() => { setBulkContextPos(null); setBulkMoveSearch(''); setBulkModal('move') }}
+            className="w-full text-left px-3 py-1.5 text-xs text-fg-2 hover:text-fg hover:bg-fg/5 transition-colors flex items-center gap-2"
+          >
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
+            </svg>
+            Move
+          </button>
+          <button
+            onClick={() => { setBulkContextPos(null); setBulkTagSearch(''); setBulkModal('tag') }}
+            className="w-full text-left px-3 py-1.5 text-xs text-fg-2 hover:text-fg hover:bg-fg/5 transition-colors flex items-center gap-2"
+          >
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5a1.99 1.99 0 011.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+            </svg>
+            Tag
+          </button>
+          <div className="border-t border-border mx-2 my-1" />
+          <button
+            onClick={() => {
+              setBulkContextPos(null)
+              if (state.deleteConfirmEnabled) setBulkModal('delete')
+              else { for (const id of selectedSnipIds) dispatch({ type: 'DELETE_SNIP', payload: { id } }); exitSelectionMode() }
+            }}
+            className="w-full text-left px-3 py-1.5 text-xs text-red-500 hover:bg-red-500/8 transition-colors flex items-center gap-2"
+          >
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4h6v3M3 7h18" />
+            </svg>
+            Delete
+          </button>
+        </div>
+      )}
+
+      {/* ── Bulk drop confirmation ── */}
+      <Modal
+        open={pendingBulkDrop !== null}
+        onClose={() => setPendingBulkDrop(null)}
+        title={
+          pendingBulkDrop?.type === 'move'  ? 'Move snips?' :
+          pendingBulkDrop?.type === 'tag'   ? 'Assign tag?' :
+          'Move to Trash?'
+        }
+      >
+        {pendingBulkDrop?.type === 'move' && (
+          <p className="text-xs text-muted mb-5">
+            Move <span className="font-semibold text-fg">{pendingBulkDrop.snipIds.length} snip{pendingBulkDrop.snipIds.length !== 1 ? 's' : ''}</span> to <span className="font-semibold text-fg">"{pendingBulkDrop.folderName}"</span>?
+          </p>
+        )}
+        {pendingBulkDrop?.type === 'tag' && (
+          <div className="flex items-center gap-2 mb-5 text-xs text-muted">
+            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: pendingBulkDrop.tagColor }} />
+            Add tag <span className="font-semibold text-fg">"{pendingBulkDrop.tagName}"</span> to <span className="font-semibold text-fg">{pendingBulkDrop.snipIds.length} snip{pendingBulkDrop.snipIds.length !== 1 ? 's' : ''}</span>?
+          </div>
+        )}
+        {pendingBulkDrop?.type === 'trash' && (
+          <p className="text-xs text-muted mb-5">
+            Move <span className="font-semibold text-fg">{pendingBulkDrop.snipIds.length} snip{pendingBulkDrop.snipIds.length !== 1 ? 's' : ''}</span> to Trash? You can restore them later.
+          </p>
+        )}
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={() => setPendingBulkDrop(null)}>Cancel</Button>
+          {pendingBulkDrop?.type === 'trash' ? (
+            <button
+              onClick={() => {
+                for (const id of pendingBulkDrop.snipIds) dispatch({ type: 'DELETE_SNIP', payload: { id } })
+                exitSelectionMode()
+              }}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500 hover:bg-red-600 text-white transition-colors"
+            >
+              Move to Trash
+            </button>
+          ) : (
+            <Button onClick={() => {
+              if (!pendingBulkDrop) return
+              if (pendingBulkDrop.type === 'move') {
+                for (const id of pendingBulkDrop.snipIds)
+                  dispatch({ type: 'MOVE_SNIP', payload: { id, folderId: pendingBulkDrop.folderId } })
+              } else if (pendingBulkDrop.type === 'tag') {
+                for (const snipId of pendingBulkDrop.snipIds) {
+                  const snip = state.snips.find((s) => s.id === snipId)
+                  if (!snip) continue
+                  const next = [...new Set([...(snip.tagIds ?? []), pendingBulkDrop.tagId])]
+                  dispatch({ type: 'SET_SNIP_TAGS', payload: { snipId, tagIds: next } })
+                }
+              }
+              exitSelectionMode()
+            }}>
+              {pendingBulkDrop?.type === 'move' ? 'Move' : 'Add Tag'}
+            </Button>
+          )}
+        </div>
+      </Modal>
+
+      {/* ── Discard selection confirm ── */}
+      <Modal open={discardConfirmOpen} onClose={() => setDiscardConfirmOpen(false)} title="Discard selection?">
+        <p className="text-xs text-muted mb-5">
+          You have <span className="font-semibold text-fg">{selectedSnipIds.size} snip{selectedSnipIds.size !== 1 ? 's' : ''}</span> selected. Discard the selection?
+        </p>
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={() => setDiscardConfirmOpen(false)} className="border border-accent/50 text-accent hover:text-accent hover:bg-accent/8">Keep selecting</Button>
+          <Button onClick={exitSelectionMode}>Discard</Button>
+        </div>
+      </Modal>
+
+      {/* ── Bulk Delete modal ── */}
+      <Modal open={bulkModal === 'delete'} onClose={() => setBulkModal(null)} title="Move to Trash?">
+        <p className="text-xs text-muted mb-5">
+          Move <span className="font-semibold text-fg">{selectedSnipIds.size} snip{selectedSnipIds.size !== 1 ? 's' : ''}</span> to Trash? You can restore them later.
+        </p>
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={() => setBulkModal(null)}>Cancel</Button>
+          <button
+            onClick={() => {
+              for (const id of selectedSnipIds) dispatch({ type: 'DELETE_SNIP', payload: { id } })
+              exitSelectionMode()
+            }}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500 hover:bg-red-600 text-white transition-colors"
+          >
+            Move to Trash
+          </button>
+        </div>
+      </Modal>
     </div>
   )
 }

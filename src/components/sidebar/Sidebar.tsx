@@ -16,7 +16,7 @@ interface SidebarProps {
 
 export function Sidebar({ onCollapse, trashOpen, onTrashClick, onSelectFolder }: SidebarProps) {
   const { state, dispatch } = useApp()
-  const { draggingSnipId, draggingTagId, setDraggingTagId } = useDrag()
+  const { draggingSnipId, draggingSnipIds, setDraggingSnipIds, draggingTagId, setDraggingTagId } = useDrag()
   const [trashDragOver, setTrashDragOver] = useState(false)
   const [renamingAll, setRenamingAll] = useState(false)
   const [renameValue, setRenameValue] = useState('')
@@ -25,6 +25,7 @@ export function Sidebar({ onCollapse, trashOpen, onTrashClick, onSelectFolder }:
   const [tagEditorTarget, setTagEditorTarget] = useState<{ mode: 'create' } | { mode: 'edit'; tag: Tag } | null>(null)
   const [confirmDeleteTagId, setConfirmDeleteTagId] = useState<string | null>(null)
   const [tagDropTarget, setTagDropTarget] = useState<{ id: string; position: 'before' | 'after' } | null>(null)
+  const [snipDragOverTagId, setSnipDragOverTagId] = useState<string | null>(null)
   const renameInputRef = useRef<HTMLInputElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
 
@@ -247,24 +248,55 @@ export function Sidebar({ onCollapse, trashOpen, onTrashClick, onSelectFolder }:
                     setTimeout(() => document.body.removeChild(ghost), 0)
                     e.dataTransfer.effectAllowed = 'move'
                   }}
-                  onDragEnd={() => { setDraggingTagId(null); setTagDropTarget(null) }}
+                  onDragEnd={() => { setDraggingTagId(null); setTagDropTarget(null); setSnipDragOverTagId(null) }}
                   onDragOver={(e) => {
-                    if (!draggingTagId || draggingTagId === tag.id) return
-                    e.preventDefault()
-                    e.dataTransfer.dropEffect = 'move'
-                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                    const position = e.clientY < rect.top + rect.height / 2 ? 'before' : 'after'
-                    setTagDropTarget({ id: tag.id, position })
+                    if (draggingTagId && draggingTagId !== tag.id) {
+                      e.preventDefault()
+                      e.dataTransfer.dropEffect = 'move'
+                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                      setTagDropTarget({ id: tag.id, position: e.clientY < rect.top + rect.height / 2 ? 'before' : 'after' })
+                      return
+                    }
+                    if (e.dataTransfer.types.includes('text/plain')) {
+                      e.preventDefault()
+                      e.dataTransfer.dropEffect = 'move'
+                      setSnipDragOverTagId(tag.id)
+                    }
                   }}
-                  onDragLeave={() => setTagDropTarget(null)}
+                  onDragLeave={(e) => {
+                    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                      setTagDropTarget(null)
+                      setSnipDragOverTagId(null)
+                    }
+                  }}
                   onDrop={(e) => {
                     e.preventDefault()
-                    if (!draggingTagId || !tagDropTarget || tagDropTarget.id !== tag.id) return
-                    const afterId = tagDropTarget.position === 'after'
-                      ? tag.id
-                      : index === 0 ? null : state.tags[index - 1].id
-                    dispatch({ type: 'REORDER_TAG', payload: { sourceId: draggingTagId, afterId } })
-                    setDraggingTagId(null); setTagDropTarget(null)
+                    setTagDropTarget(null)
+                    setSnipDragOverTagId(null)
+                    if (draggingTagId && tagDropTarget?.id === tag.id) {
+                      const afterId = tagDropTarget.position === 'after'
+                        ? tag.id
+                        : index === 0 ? null : state.tags[index - 1].id
+                      dispatch({ type: 'REORDER_TAG', payload: { sourceId: draggingTagId, afterId } })
+                      setDraggingTagId(null)
+                      return
+                    }
+                    const bulkJson = e.dataTransfer.getData('application/json')
+                    const bulkIds: string[] | null = bulkJson ? JSON.parse(bulkJson) : null
+                    if (bulkIds && bulkIds.length > 0) {
+                      document.dispatchEvent(new CustomEvent('snipper:bulk-drop-pending', {
+                        detail: { type: 'tag', snipIds: bulkIds, tagId: tag.id, tagName: tag.name, tagColor: tag.color }
+                      }))
+                    } else {
+                      const snipId = e.dataTransfer.getData('text/plain')
+                      if (snipId) {
+                        const snip = state.snips.find((s) => s.id === snipId)
+                        if (snip) {
+                          const next = [...new Set([...(snip.tagIds ?? []), tag.id])]
+                          dispatch({ type: 'SET_SNIP_TAGS', payload: { snipId, tagIds: next } })
+                        }
+                      }
+                    }
                   }}
                 >
                   {/* Drop indicator — before */}
@@ -272,10 +304,12 @@ export function Sidebar({ onCollapse, trashOpen, onTrashClick, onSelectFolder }:
 
                   <div
                     onClick={!state.isEditMode ? () => dispatch({ type: 'SELECT_TAG', payload: { id: tag.id } }) : undefined}
-                    className={`flex items-center gap-2 py-1.5 rounded-lg transition-colors ${!state.isEditMode ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'} ${isDragging ? 'opacity-40' : ''}`}
-                    style={isSelected
-                      ? { backgroundColor: tag.color + '18', color: tag.color, borderLeft: `2px solid ${tag.color}`, paddingLeft: 6, paddingRight: 8 }
-                      : { borderLeft: '2px solid transparent', paddingLeft: 6, paddingRight: 8 }
+                    className={`flex items-center gap-2 py-1.5 rounded-lg transition-colors ${!state.isEditMode ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'} ${isDragging ? 'opacity-40' : ''} ${snipDragOverTagId === tag.id ? 'ring-1' : ''}`}
+                    style={snipDragOverTagId === tag.id
+                      ? { backgroundColor: tag.color + '22', borderLeft: `2px solid ${tag.color}`, paddingLeft: 6, paddingRight: 8, outline: 'none', boxShadow: `0 0 0 1px ${tag.color}55` }
+                      : isSelected
+                        ? { backgroundColor: tag.color + '18', color: tag.color, borderLeft: `2px solid ${tag.color}`, paddingLeft: 6, paddingRight: 8 }
+                        : { borderLeft: '2px solid transparent', paddingLeft: 6, paddingRight: 8 }
                     }
                   >
                     <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: tag.color }} />
@@ -429,7 +463,7 @@ export function Sidebar({ onCollapse, trashOpen, onTrashClick, onSelectFolder }:
           onClick={onTrashClick}
           title="Trash"
           onDragOver={(e) => {
-            if (!draggingSnipId) return
+            if (!e.dataTransfer.types.includes('text/plain')) return
             e.preventDefault()
             e.dataTransfer.dropEffect = 'move'
             setTrashDragOver(true)
@@ -438,7 +472,16 @@ export function Sidebar({ onCollapse, trashOpen, onTrashClick, onSelectFolder }:
           onDrop={(e) => {
             e.preventDefault()
             setTrashDragOver(false)
-            if (draggingSnipId) dispatch({ type: 'DELETE_SNIP', payload: { id: draggingSnipId } })
+            const bulkJson = e.dataTransfer.getData('application/json')
+            const bulkIds: string[] | null = bulkJson ? JSON.parse(bulkJson) : null
+            if (bulkIds && bulkIds.length > 0) {
+              document.dispatchEvent(new CustomEvent('snipper:bulk-drop-pending', {
+                detail: { type: 'trash', snipIds: bulkIds }
+              }))
+            } else {
+              const snipId = e.dataTransfer.getData('text/plain')
+              if (snipId) dispatch({ type: 'DELETE_SNIP', payload: { id: snipId } })
+            }
           }}
           className={`relative flex items-center justify-center w-12 h-12 rounded-xl border transition-colors ${
             trashDragOver
