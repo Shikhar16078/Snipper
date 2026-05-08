@@ -648,7 +648,8 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
             <EmptyState
               onAdd={onAdd}
               isSearching={!!q}
-              isFiltering={(hasFilters || starFilter) && !q}
+              isStarred={starFilter && !q && !hasFilters}
+              isFiltering={(hasFilters || starFilter) && !q && !(starFilter && !hasFilters)}
               onClearFilters={clearFilters}
               tagName={!q && !hasFilters && !starFilter && selectedTag ? selectedTag.name : undefined}
             />
