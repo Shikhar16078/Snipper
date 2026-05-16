@@ -19,4 +19,5 @@ export const initialState: AppState = {
   trashAutoPurge: null,
   autoUpdateEnabled: true,
   snipSort: 'updated',
+  toolbarPosition: 'right',
 }

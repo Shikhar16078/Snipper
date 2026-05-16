@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import type { Snip, Folder, Section, SnipSort } from '../../types'
 import { generateId } from '../../utils/id'
 
@@ -149,8 +149,8 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
   const [orgConfirmDeleteId, setOrgConfirmDeleteId] = useState<string | null>(null)
   const [isAddingSection, setIsAddingSection] = useState(false)
 
-  const [filterPos, setFilterPos] = useState<{ top: number; right: number } | null>(null)
-  const [sortPos, setSortPos] = useState<{ top: number; right: number } | null>(null)
+  const [filterPos, setFilterPos] = useState<React.CSSProperties | null>(null)
+  const [sortPos, setSortPos] = useState<React.CSSProperties | null>(null)
 
   const searchRef = useRef<HTMLInputElement>(null)
   const sortRef = useRef<HTMLDivElement>(null)
@@ -388,6 +388,30 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
       const snipId = e.dataTransfer.getData('text/plain')
       if (snipId) dispatch({ type: 'SET_SNIP_SECTION', payload: { snipId, sectionId } })
     }
+  }
+
+  // Toolbar position derived classes
+  const tbPos = state.toolbarPosition ?? 'right'
+  const tbVertical = tbPos === 'left' || tbPos === 'right'
+  const tbWrapperClass = {
+    left:   'absolute left-0 inset-y-0 overflow-y-auto flex flex-col px-2 py-4 pointer-events-none',
+    right:  'absolute right-0 inset-y-0 overflow-y-auto flex flex-col px-2 py-4 pointer-events-none',
+    top:    'absolute top-0 inset-x-0 overflow-x-auto flex flex-row py-2 px-4 pointer-events-none',
+    bottom: 'absolute bottom-0 inset-x-0 overflow-x-auto flex flex-row py-2 px-4 pointer-events-none',
+  }[tbPos]
+  const tbPillClass = tbVertical
+    ? 'pointer-events-auto flex flex-col items-center py-2 px-1 gap-0.5 bg-panel border border-border rounded-2xl shadow-md m-auto'
+    : 'pointer-events-auto flex flex-row items-center px-2 py-1 gap-0.5 bg-panel border border-border rounded-2xl shadow-md m-auto'
+  const tbDividerClass = tbVertical
+    ? 'w-5 h-px bg-border/80 my-0.5 flex-shrink-0'
+    : 'h-5 w-px bg-border/80 mx-0.5 flex-shrink-0'
+  const contentPad = { left: 'pl-14', right: 'pr-14', top: 'pt-14', bottom: 'pb-20' }[tbPos]
+
+  function tbDropdownPos(rect: DOMRect): React.CSSProperties {
+    if (tbPos === 'left')   return { position: 'fixed', top: rect.top, left: rect.right + 4 }
+    if (tbPos === 'top')    return { position: 'fixed', top: rect.bottom + 4, left: rect.left }
+    if (tbPos === 'bottom') return { position: 'fixed', bottom: window.innerHeight - rect.top + 4, left: rect.left }
+    return { position: 'fixed', top: rect.top, right: window.innerWidth - rect.left + 4 }
   }
 
   const flatFolders = flattenFolders(state.folders)
@@ -721,7 +745,7 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
               }
 
               return (
-                <div className="flex-1 overflow-y-auto p-4 pr-14 h-full space-y-5">
+                <div className={`flex-1 overflow-y-auto p-4 h-full space-y-5 ${contentPad}`}>
                   {renderDropLine(0)}
                   {orderedSectionDisplay.map((item, index) => {
                     const isDraggedItem = draggingSectionId === item.id
@@ -914,7 +938,7 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
               tagName={!q && !hasFilters && !starFilter && selectedTag ? selectedTag.name : undefined}
             />
           ) : starFilter ? (
-            <div className="flex-1 overflow-y-auto p-4 pr-14 h-full">
+            <div className={`flex-1 overflow-y-auto p-4 h-full ${contentPad}`}>
               {starredSnips.length === 0 ? (
                 /* ── Nothing starred: banner + all snips ── */
                 <>
@@ -1039,7 +1063,7 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
           ) : (
             /* ── Normal flat view ── */
             <div
-              className="flex-1 overflow-y-auto p-4 pr-14 h-full"
+              className={`flex-1 overflow-y-auto p-4 h-full ${contentPad}`}
               onMouseDown={(e) => {
                 if (e.detail >= 2 && (e.target === e.currentTarget || (e.target as HTMLElement).tagName === 'DIV')) {
                   const target = e.target as HTMLElement
@@ -1071,16 +1095,15 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
           )}
         </div>
 
-        {/* ── Right toolbar ── */}
-        <div className="absolute right-0 inset-y-0 overflow-y-auto flex flex-col px-2 py-4 pointer-events-none">
-          <div className="pointer-events-auto flex flex-col items-center py-2 px-1 gap-0.5 bg-panel border border-border rounded-2xl shadow-md m-auto">
+        {/* ── Floating toolbar ── */}
+        <div className={tbWrapperClass}>
+          <div className={tbPillClass}>
             {/* Filter */}
             <div ref={filterRef}>
               <button
                 onClick={() => {
                   if (!filterOpen && filterRef.current) {
-                    const rect = filterRef.current.getBoundingClientRect()
-                    setFilterPos({ top: rect.top, right: window.innerWidth - rect.left + 4 })
+                    setFilterPos(tbDropdownPos(filterRef.current.getBoundingClientRect()))
                   }
                   setFilterOpen((v) => !v)
                 }}
@@ -1104,7 +1127,7 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
             {filterOpen && filterPos && (
               <div
                 ref={filterDropdownRef}
-                style={{ position: 'fixed', top: filterPos.top, right: filterPos.right }}
+                style={filterPos}
                 className="w-56 bg-panel border border-border rounded-xl shadow-xl z-[200] animate-pop overflow-hidden"
               >
                 <div className="p-2.5">
@@ -1179,15 +1202,14 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
               </svg>
             </button>
 
-            <div className="w-5 h-px bg-border/80 my-0.5 flex-shrink-0" />
+            <div className={tbDividerClass} />
 
             {/* Sort */}
             <div ref={sortRef}>
               <button
                 onClick={() => {
                   if (!sortOpen && sortRef.current) {
-                    const rect = sortRef.current.getBoundingClientRect()
-                    setSortPos({ top: rect.top, right: window.innerWidth - rect.left + 4 })
+                    setSortPos(tbDropdownPos(sortRef.current.getBoundingClientRect()))
                   }
                   setSortOpen((v) => !v)
                 }}
@@ -1206,7 +1228,7 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
             {sortOpen && sortPos && (
               <div
                 ref={sortDropdownRef}
-                style={{ position: 'fixed', top: sortPos.top, right: sortPos.right }}
+                style={sortPos}
                 className="w-40 bg-panel border border-border rounded-xl shadow-xl py-1.5 z-[200] animate-pop"
               >
                 {SORT_OPTIONS.map((opt) => (
@@ -1230,7 +1252,7 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
               </div>
             )}
 
-            <div className="w-5 h-px bg-border/80 my-0.5 flex-shrink-0" />
+            <div className={tbDividerClass} />
 
             {/* Expand-all toggle */}
             <button
@@ -1251,7 +1273,7 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
             </button>
 
             {/* View mode toggle */}
-            <div className="flex flex-col items-center bg-fg/6 rounded-lg p-0.5">
+            <div className={`${tbVertical ? 'flex flex-col' : 'flex flex-row'} items-center bg-fg/6 rounded-lg p-0.5`}>
               <button
                 onClick={() => dispatch({ type: 'SET_VIEW_MODE', payload: { mode: 'grid' } })}
                 className={`p-1.5 rounded-md transition-colors ${state.viewMode === 'grid' ? 'bg-panel text-fg shadow-sm' : 'text-muted hover:text-fg-2'}`}
@@ -1272,7 +1294,7 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
               </button>
             </div>
 
-            <div className="w-5 h-px bg-border/80 my-0.5 flex-shrink-0" />
+            <div className={tbDividerClass} />
 
             {/* Multi-select */}
             <button
@@ -1293,7 +1315,7 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
             {/* Section controls — only when a specific folder is selected */}
             {currentFolder && !isUnfiled && !state.selectedTagId && (
               <>
-                <div className="w-5 h-px bg-border/80 my-0.5 flex-shrink-0" />
+                <div className={tbDividerClass} />
                 {hasSections && (
                   <button
                     onClick={toggleAllSections}

@@ -56,6 +56,7 @@ export interface Snip {
 export type ViewMode = 'grid' | 'list'
 export type HoldAction = 'edit' | 'copy'
 export type SnipSort = 'updated' | 'az' | 'za' | 'newest' | 'oldest' | 'most-used'
+export type ToolbarPosition = 'left' | 'top' | 'right' | 'bottom'
 export type TrashAutoPurge = number | null  // null = off, number = ms until permanent deletion
 export type Theme =
   | 'stone'
@@ -107,4 +108,5 @@ export interface AppState {
   trashAutoPurge: TrashAutoPurge
   autoUpdateEnabled: boolean
   snipSort: SnipSort
+  toolbarPosition: ToolbarPosition
 }

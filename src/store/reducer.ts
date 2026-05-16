@@ -243,6 +243,9 @@ export function reducer(state: AppState, action: Action): AppState {
     case 'SET_SNIP_SORT':
       return { ...state, snipSort: action.payload }
 
+    case 'SET_TOOLBAR_POSITION':
+      return { ...state, toolbarPosition: action.payload }
+
     case 'TOGGLE_PIN_SNIP':
       return {
         ...state,
