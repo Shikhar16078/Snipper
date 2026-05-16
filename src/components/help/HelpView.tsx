@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import { TIP_CATEGORIES } from '../snips/TipsFooter'
 import { Settings } from '../ui/Settings'
 
@@ -14,6 +14,11 @@ const CATEGORY_ICONS: JSX.Element[] = [
   // Folders & Sidebar — folder
   <svg key="folders" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
+  </svg>,
+  // Sections — horizontal rows with divider
+  <svg key="sections" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 12h16" />
   </svg>,
   // Tags — price tag
   <svg key="tags" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -33,21 +38,43 @@ const CATEGORY_ICONS: JSX.Element[] = [
   </svg>,
 ]
 
+const HELP_SIDEBAR_MIN = 200
+const HELP_SIDEBAR_MAX = 320
+const HELP_SIDEBAR_DEFAULT = 200
+
 interface HelpViewProps {
-  collapsed: boolean
-  onToggleSidebar: () => void
   onOpenHelp: () => void
   onGoHome: () => void
   onOpenImport?: () => void
   onOpenExport?: () => void
 }
 
-export function HelpView({ collapsed, onToggleSidebar, onOpenHelp, onGoHome, onOpenImport, onOpenExport }: HelpViewProps) {
+export function HelpView({ onOpenHelp, onGoHome, onOpenImport, onOpenExport }: HelpViewProps) {
   const [selected, setSelected] = useState(0)
   const [navDirection, setNavDirection] = useState<'forward' | 'backward'>('forward')
   const [query, setQuery] = useState('')
+  const [helpSidebarWidth, setHelpSidebarWidth] = useState(HELP_SIDEBAR_DEFAULT)
   const searchRef = useRef<HTMLInputElement>(null)
+  const isResizing = useRef(false)
   const isMac = (window as any).api?.platform === 'darwin'
+
+  const startResize = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    isResizing.current = true
+    const startX = e.clientX
+    const startW = helpSidebarWidth
+    function onMove(ev: MouseEvent) {
+      if (!isResizing.current) return
+      setHelpSidebarWidth(Math.max(HELP_SIDEBAR_MIN, Math.min(HELP_SIDEBAR_MAX, startW + ev.clientX - startX)))
+    }
+    function onUp() {
+      isResizing.current = false
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }, [helpSidebarWidth])
   const cat = TIP_CATEGORIES[selected]
   const total = TIP_CATEGORIES.length
   const prevIndex = (selected - 1 + total) % total
@@ -72,21 +99,9 @@ export function HelpView({ collapsed, onToggleSidebar, onOpenHelp, onGoHome, onO
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-surface">
 
       {/* Navbar */}
-      <div className={`flex items-center gap-2 pr-4 border-b border-border flex-shrink-0 transition-[padding] duration-200 ${
-        isMac ? `drag-region select-none h-[40px] ${collapsed ? 'pl-[80px]' : 'pl-4'}` : 'py-2.5 pl-4'
+      <div className={`flex items-center gap-2 pr-4 border-b border-border flex-shrink-0 ${
+        isMac ? 'drag-region select-none h-[40px] pl-[80px]' : 'py-2.5 pl-4'
       }`}>
-        {collapsed && (
-          <button
-            onClick={onToggleSidebar}
-            className="p-1 -ml-1 rounded-md text-muted hover:text-fg hover:bg-fg/8 transition-colors app-no-drag"
-            title="Expand sidebar"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <rect width="18" height="18" x="3" y="3" rx="2" ry="2" strokeWidth={1.5} />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 3v18" />
-            </svg>
-          </button>
-        )}
 
         {/* Back button */}
         <button
@@ -142,27 +157,41 @@ export function HelpView({ collapsed, onToggleSidebar, onOpenHelp, onGoHome, onO
 
         {/* Category sidebar — hidden while searching */}
         {!trimmed && (
-          <div className="w-48 flex-shrink-0 border-r border-border overflow-y-auto py-3">
-            {TIP_CATEGORIES.map((c, i) => (
-              <button
-                key={c.title}
-                onClick={() => navigateTo(i)}
-                className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-left transition-colors ${
-                  selected === i
-                    ? 'text-accent bg-accent/8 font-semibold border-r-2 border-accent'
-                    : 'text-fg-2 hover:text-fg hover:bg-fg/5'
-                }`}
-              >
-                <span className={selected === i ? 'text-accent' : 'text-muted'}>
-                  {CATEGORY_ICONS[i]}
-                </span>
-                <div className="min-w-0">
-                  <p className="text-xs truncate">{c.title}</p>
-                  <p className="text-[10px] text-muted font-normal mt-0.5">{c.tips.length} tips</p>
-                </div>
-              </button>
-            ))}
-          </div>
+          <>
+            <div
+              className="flex-shrink-0 overflow-y-auto py-3"
+              style={{ width: helpSidebarWidth, transition: isResizing.current ? 'none' : undefined }}
+            >
+              {TIP_CATEGORIES.map((c, i) => (
+                <button
+                  key={c.title}
+                  onClick={() => navigateTo(i)}
+                  className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-left transition-colors ${
+                    selected === i
+                      ? 'text-accent bg-accent/8 font-semibold border-l-2 border-accent pl-[14px]'
+                      : 'text-fg-2 hover:text-fg hover:bg-fg/5'
+                  }`}
+                >
+                  <span className={selected === i ? 'text-accent' : 'text-muted'}>
+                    {CATEGORY_ICONS[i]}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-xs truncate">{c.title}</p>
+                    <p className="text-[10px] text-muted font-normal mt-0.5">{c.tips.length} tips</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            {/* Resize handle */}
+            <div
+              className="flex-shrink-0 relative group z-10"
+              style={{ width: 4 }}
+              onMouseDown={startResize}
+            >
+              <div className="absolute inset-0 bg-border group-hover:bg-accent/40 transition-colors cursor-ew-resize" />
+            </div>
+          </>
         )}
 
         {/* Content */}

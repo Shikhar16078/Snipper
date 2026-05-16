@@ -301,7 +301,7 @@ function AppShell() {
       <div
         className="flex-shrink-0 overflow-hidden"
         style={{
-          width: collapsed ? 0 : sidebarWidth,
+          width: helpOpen || collapsed ? 0 : sidebarWidth,
           transition: isResizing.current ? 'none' : 'width 0.2s ease',
         }}
       >
@@ -313,7 +313,7 @@ function AppShell() {
       {/* Resize + toggle handle */}
       <div
         className="flex-shrink-0 relative group z-10"
-        style={{ width: collapsed ? 0 : 4 }}
+        style={{ width: helpOpen || collapsed ? 0 : 4 }}
         onMouseDown={startResize}
       >
         <div className="absolute inset-0 bg-border group-hover:bg-accent/40 transition-colors cursor-ew-resize" />
@@ -393,7 +393,7 @@ function AppShell() {
           ) : trashOpen ? (
             <TrashView collapsed={collapsed} onToggleSidebar={toggleCollapse} onOpenHelp={() => setHelpOpen(true)} onOpenImport={() => setImportOpen(true)} onOpenExport={() => setExportOpen(true)} />
           ) : helpOpen ? (
-            <HelpView collapsed={collapsed} onToggleSidebar={toggleCollapse} onOpenHelp={() => setHelpOpen(true)} onGoHome={() => setHelpOpen(false)} onOpenImport={() => setImportOpen(true)} onOpenExport={() => setExportOpen(true)} />
+            <HelpView onOpenHelp={() => setHelpOpen(true)} onGoHome={() => setHelpOpen(false)} onOpenImport={() => setImportOpen(true)} onOpenExport={() => setExportOpen(true)} />
           ) : (
             <SnipGrid onAdd={openCreateEditor} onEdit={openEditor} collapsed={collapsed} onToggleSidebar={toggleCollapse} onOpenHelp={() => setHelpOpen(true)} onOpenImport={() => setImportOpen(true)} onOpenExport={() => setExportOpen(true)} />
           )}
