@@ -8,6 +8,16 @@ export interface Folder {
   name: string
   parentId: string | null
   createdAt: number
+  defaultSectionName?: string   // name of the unsectioned bucket when sections exist
+  defaultSectionOrder?: number  // position of General among sections (-1 = first, or its index in orderedIds)
+}
+
+export interface Section {
+  id: string
+  name: string
+  folderId: string
+  order: number
+  createdAt: number
 }
 
 export interface Tag {
@@ -31,6 +41,7 @@ export const TAG_COLORS = [
 export interface Snip {
   id: string
   folderId: string
+  sectionId?: string | null
   name: string
   body: string
   linkTitles?: Record<string, string>
@@ -67,12 +78,21 @@ export interface TrashedFolder {
   dividers: Divider[]
 }
 
-export type TrashedItem = TrashedSnip | TrashedFolder
+export interface TrashedSection {
+  id: string
+  type: 'section'
+  deletedAt: number
+  section: Section
+  snipIds: string[]
+}
+
+export type TrashedItem = TrashedSnip | TrashedFolder | TrashedSection
 
 export interface AppState {
   folders: Folder[]
   snips: Snip[]
   dividers: Divider[]
+  sections: Section[]
   trash: TrashedItem[]
   tags: Tag[]
   selectedFolderId: string | null

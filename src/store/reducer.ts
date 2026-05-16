@@ -1,4 +1,4 @@
-import type { AppState, Folder, Tag, TrashedFolder, TrashedSnip } from '../types'
+import type { AppState, Folder, Section, Tag, TrashedFolder, TrashedSection, TrashedSnip } from '../types'
 import type { Action } from './actions'
 import { generateId } from '../utils/id'
 
@@ -57,6 +57,7 @@ export function reducer(state: AppState, action: Action): AppState {
         folders: state.folders.filter((f) => !toDelete.includes(f.id)),
         snips: state.snips.filter((s) => !toDelete.includes(s.folderId)),
         dividers: state.dividers.filter((d) => d.afterFolderId === null || !toDelete.includes(d.afterFolderId)),
+        sections: state.sections.filter((s) => !toDelete.includes(s.folderId)),
         trash: [trashedEntry, ...state.trash],
         selectedFolderId: toDelete.includes(state.selectedFolderId ?? '')
           ? null
@@ -164,6 +165,7 @@ export function reducer(state: AppState, action: Action): AppState {
           {
             id: action.payload.id ?? generateId(),
             folderId: action.payload.folderId,
+            sectionId: action.payload.sectionId ?? null,
             name: action.payload.name,
             body: action.payload.body,
             linkTitles: sanitizeLinkTitles(action.payload.linkTitles),
@@ -184,6 +186,7 @@ export function reducer(state: AppState, action: Action): AppState {
                 name: action.payload.name,
                 body: action.payload.body,
                 folderId: action.payload.folderId,
+                sectionId: action.payload.sectionId !== undefined ? action.payload.sectionId : s.sectionId,
                 linkTitles: sanitizeLinkTitles(action.payload.linkTitles),
                 ...(action.payload.tagIds !== undefined ? { tagIds: action.payload.tagIds } : {}),
                 updatedAt: Date.now(),
@@ -312,6 +315,14 @@ export function reducer(state: AppState, action: Action): AppState {
       if (item.type === 'snip') {
         return { ...state, snips: [...state.snips, item.snip], trash: remaining }
       }
+      if (item.type === 'section') {
+        return {
+          ...state,
+          sections: [...state.sections, item.section],
+          snips: state.snips.map((s) => item.snipIds.includes(s.id) ? { ...s, sectionId: item.section.id } : s),
+          trash: remaining,
+        }
+      }
       return {
         ...state,
         folders: [...state.folders, ...item.folders],
@@ -325,16 +336,20 @@ export function reducer(state: AppState, action: Action): AppState {
       let folders = [...state.folders]
       let snips = [...state.snips]
       let dividers = [...state.dividers]
+      let sections = [...state.sections]
       for (const item of state.trash) {
         if (item.type === 'snip') {
           snips = [...snips, item.snip]
+        } else if (item.type === 'section') {
+          sections = [...sections, item.section]
+          snips = snips.map((s) => item.snipIds.includes(s.id) ? { ...s, sectionId: item.section.id } : s)
         } else {
           folders = [...folders, ...item.folders]
           snips = [...snips, ...item.snips]
           dividers = [...dividers, ...item.dividers]
         }
       }
-      return { ...state, folders, snips, dividers, trash: [] }
+      return { ...state, folders, snips, dividers, sections, trash: [] }
     }
 
     case 'PERMANENTLY_DELETE_TRASH_ITEM':
@@ -342,6 +357,103 @@ export function reducer(state: AppState, action: Action): AppState {
 
     case 'EMPTY_TRASH':
       return { ...state, trash: [] }
+
+    case 'ADD_SECTION': {
+      const folderSections = state.sections.filter((s) => s.folderId === action.payload.folderId)
+      const maxOrder = folderSections.length > 0 ? Math.max(...folderSections.map((s) => s.order)) : -1
+      const section: Section = {
+        id: action.payload.id ?? generateId(),
+        name: action.payload.name,
+        folderId: action.payload.folderId,
+        order: maxOrder + 1,
+        createdAt: Date.now(),
+      }
+      return { ...state, sections: [...state.sections, section] }
+    }
+
+    case 'RENAME_SECTION':
+      return {
+        ...state,
+        sections: state.sections.map((s) =>
+          s.id === action.payload.sectionId ? { ...s, name: action.payload.name } : s,
+        ),
+      }
+
+    case 'DELETE_SECTION': {
+      const section = state.sections.find((s) => s.id === action.payload.sectionId)
+      if (!section) return state
+      const snipIds = state.snips.filter((s) => s.sectionId === action.payload.sectionId).map((s) => s.id)
+      const trashedEntry: TrashedSection = { id: section.id, type: 'section', deletedAt: Date.now(), section, snipIds }
+      return {
+        ...state,
+        sections: state.sections.filter((s) => s.id !== action.payload.sectionId),
+        snips: state.snips.map((s) =>
+          s.sectionId === action.payload.sectionId ? { ...s, sectionId: null } : s,
+        ),
+        trash: [trashedEntry, ...state.trash],
+      }
+    }
+
+    case 'REORDER_SECTION': {
+      const { sourceId, afterId, folderId } = action.payload
+      if (sourceId === afterId) return state
+      const folderSections = state.sections.filter((s) => s.folderId === folderId)
+      const sourceIdx = folderSections.findIndex((s) => s.id === sourceId)
+      if (sourceIdx === -1) return state
+      const [moved] = folderSections.splice(sourceIdx, 1)
+      if (afterId === null) {
+        folderSections.unshift(moved)
+      } else {
+        const afterIdx = folderSections.findIndex((s) => s.id === afterId)
+        folderSections.splice(afterIdx + 1, 0, moved)
+      }
+      const reordered = folderSections.map((s, i) => ({ ...s, order: i }))
+      return {
+        ...state,
+        sections: [
+          ...state.sections.filter((s) => s.folderId !== folderId),
+          ...reordered,
+        ],
+      }
+    }
+
+    case 'SET_SNIP_SECTION':
+      return {
+        ...state,
+        snips: state.snips.map((s) =>
+          s.id === action.payload.snipId ? { ...s, sectionId: action.payload.sectionId } : s,
+        ),
+      }
+
+    case 'RENAME_DEFAULT_SECTION':
+      return {
+        ...state,
+        folders: state.folders.map((f) =>
+          f.id === action.payload.folderId
+            ? { ...f, defaultSectionName: action.payload.name }
+            : f,
+        ),
+      }
+
+
+    case 'IMPORT_SECTIONS':
+      return { ...state, sections: [...state.sections, ...action.payload.sections] }
+
+    case 'REORDER_SECTIONS_IN_FOLDER': {
+      const { folderId, orderedIds } = action.payload
+      const generalIdx = orderedIds.indexOf('__general__')
+      return {
+        ...state,
+        sections: state.sections.map((s) => {
+          if (s.folderId !== folderId) return s
+          const idx = orderedIds.indexOf(s.id)
+          return idx === -1 ? s : { ...s, order: idx }
+        }),
+        folders: state.folders.map((f) =>
+          f.id === folderId ? { ...f, defaultSectionOrder: generalIdx } : f
+        ),
+      }
+    }
 
     default:
       return state

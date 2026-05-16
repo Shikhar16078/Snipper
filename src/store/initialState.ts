@@ -4,6 +4,7 @@ export const initialState: AppState = {
   folders: [],
   snips: [],
   dividers: [],
+  sections: [],
   trash: [],
   tags: [],
   selectedFolderId: null,

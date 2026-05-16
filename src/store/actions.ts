@@ -1,4 +1,4 @@
-import type { AppState, ViewMode, Theme, HoldAction, TrashAutoPurge, SnipSort, Folder, Snip } from '../types'
+import type { AppState, ViewMode, Theme, HoldAction, TrashAutoPurge, SnipSort, Folder, Snip, Section } from '../types'
 
 export type Action =
   | { type: 'ADD_FOLDER'; payload: { name: string; parentId?: string | null } }
@@ -6,8 +6,8 @@ export type Action =
   | { type: 'DELETE_FOLDER'; payload: { id: string } }
   | { type: 'REORDER_FOLDER'; payload: { sourceId: string; afterId: string | null; parentId: string | null } }
   | { type: 'SELECT_FOLDER'; payload: { id: string | null } }
-  | { type: 'ADD_SNIP'; payload: { id?: string; folderId: string; name: string; body: string; linkTitles?: Record<string, string>; tagIds?: string[] } }
-  | { type: 'EDIT_SNIP'; payload: { id: string; name: string; body: string; folderId: string; linkTitles?: Record<string, string>; tagIds?: string[] } }
+  | { type: 'ADD_SNIP'; payload: { id?: string; folderId: string; sectionId?: string | null; name: string; body: string; linkTitles?: Record<string, string>; tagIds?: string[] } }
+  | { type: 'EDIT_SNIP'; payload: { id: string; name: string; body: string; folderId: string; sectionId?: string | null; linkTitles?: Record<string, string>; tagIds?: string[] } }
   | { type: 'DELETE_SNIP'; payload: { id: string } }
   | { type: 'MOVE_SNIP'; payload: { id: string; folderId: string } }
   | { type: 'SET_VIEW_MODE'; payload: { mode: ViewMode } }
@@ -38,4 +38,12 @@ export type Action =
   | { type: 'SELECT_TAG';    payload: { id: string | null } }
   | { type: 'SET_SNIP_TAGS'; payload: { snipId: string; tagIds: string[] } }
   | { type: 'REORDER_TAG';   payload: { sourceId: string; afterId: string | null } }
+  | { type: 'ADD_SECTION'; payload: { id?: string; folderId: string; name: string } }
+  | { type: 'RENAME_SECTION'; payload: { sectionId: string; name: string } }
+  | { type: 'DELETE_SECTION'; payload: { sectionId: string } }
+  | { type: 'REORDER_SECTION'; payload: { sourceId: string; afterId: string | null; folderId: string } }
+  | { type: 'SET_SNIP_SECTION'; payload: { snipId: string; sectionId: string | null } }
+  | { type: 'RENAME_DEFAULT_SECTION'; payload: { folderId: string; name: string } }
+  | { type: 'IMPORT_SECTIONS'; payload: { sections: Section[] } }
+  | { type: 'REORDER_SECTIONS_IN_FOLDER'; payload: { folderId: string; orderedIds: string[] } }
   | { type: 'LOAD_STATE'; payload: AppState }
