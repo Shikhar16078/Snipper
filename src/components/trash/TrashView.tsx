@@ -5,7 +5,7 @@ import { Modal } from '../modals/Modal'
 import { Button } from '../ui/Button'
 import { Settings } from '../ui/Settings'
 import { extractLinks, getLinkTitle } from '../../utils/links'
-import type { TrashedSnip, TrashedFolder } from '../../types'
+import type { TrashedSnip, TrashedFolder, TrashedSection } from '../../types'
 
 function timeAgo(ms: number): string {
   const diff = Date.now() - ms
@@ -72,6 +72,7 @@ export function TrashView({ collapsed, onToggleSidebar, onOpenHelp, onOpenImport
   const visibleItems = q
     ? state.trash.filter((item) => {
         if (item.type === 'snip') return item.snip.name.toLowerCase().includes(q) || item.snip.body.toLowerCase().includes(q)
+        if (item.type === 'section') return item.section.name.toLowerCase().includes(q)
         return item.folders[0]?.name.toLowerCase().includes(q)
       })
     : state.trash
@@ -231,7 +232,9 @@ export function TrashView({ collapsed, onToggleSidebar, onOpenHelp, onOpenImport
             {visibleItems.map((item) =>
               item.type === 'snip'
                 ? <TrashedSnipCard key={item.id} item={item} expanded={expandAll} />
-                : <TrashedFolderCard key={item.id} item={item} />
+                : item.type === 'section'
+                  ? <TrashedSectionCard key={item.id} item={item} />
+                  : <TrashedFolderCard key={item.id} item={item} />
             )}
           </div>
         </div>
@@ -449,6 +452,101 @@ function TrashedSnipCard({ item, expanded }: { item: TrashedSnip; expanded: bool
       <Modal open={confirmDelete} onClose={() => setConfirmDelete(false)} title="Permanently delete?">
         <p className="text-xs text-muted mb-5">
           <span className="font-semibold text-fg">{item.snip.name}</span> will be permanently deleted. This cannot be undone.
+        </p>
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={() => setConfirmDelete(false)}>Cancel</Button>
+          <button
+            onClick={() => { dispatch({ type: 'PERMANENTLY_DELETE_TRASH_ITEM', payload: { id: item.id } }); setConfirmDelete(false) }}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${deleteButtonClasses}`}
+          >
+            Delete Forever
+          </button>
+        </div>
+      </Modal>
+    </>
+  )
+}
+
+// ── Trashed Section Card ─────────────────────────────────────────────────────
+
+function TrashedSectionCard({ item }: { item: TrashedSection }) {
+  const { state, dispatch } = useApp()
+  const purgeDue = formatPurgeDue(item.deletedAt, state.trashAutoPurge)
+  const [confirmRestore, setConfirmRestore] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+
+  const snipCount = item.snipIds.length
+  const folderName = state.folders.find((f) => f.id === item.section.folderId)?.name ?? 'Unknown folder'
+
+  return (
+    <>
+      <div className="select-none rounded-xl border border-border bg-panel hover:border-fg/25 hover:shadow-md transition-all cursor-default flex flex-col">
+        <div className="p-3 flex flex-col flex-1">
+          <div className="flex items-center gap-2 min-w-0 mb-2.5">
+            <svg className="w-4 h-4 flex-shrink-0 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
+            </svg>
+            <h3 className="text-sm font-semibold leading-snug text-fg truncate flex-1 min-w-0">{item.section.name}</h3>
+            <span className="flex-shrink-0 text-[10px] text-muted border border-border rounded-md px-1.5 py-0.5">{timeAgo(item.deletedAt)}</span>
+          </div>
+          <p className="text-xs text-muted">
+            {snipCount > 0 ? `${snipCount} snip${snipCount !== 1 ? 's' : ''}` : 'Empty section'}{' '}
+            in <span className="font-medium text-fg-2">{folderName}</span>
+          </p>
+
+          <div className="mt-auto pt-2.5 border-t border-border/60 flex items-center gap-1.5">
+            {purgeDue && (
+              <span className={`text-[10px] font-medium border rounded-md px-1.5 py-0.5 ${
+                purgeDue.urgent
+                  ? 'text-red-400 border-red-400/40 bg-red-400/5'
+                  : 'text-orange-400 border-orange-400/40 bg-orange-400/5'
+              }`}>
+                {purgeDue.label}
+              </span>
+            )}
+            <div className="flex-1" />
+            <button
+              onClick={() => setConfirmRestore(true)}
+              className={`flex items-center gap-1 text-[11px] font-medium border px-2 py-1 rounded-lg transition-colors ${recoverButtonClasses}`}
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+              </svg>
+              Recover
+            </button>
+            <button
+              onClick={() => setConfirmDelete(true)}
+              className={`flex items-center gap-1 text-[11px] font-medium border px-2 py-1 rounded-lg transition-colors ${deleteButtonClasses}`}
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7M3 7h18M9 7V4h6v3" />
+              </svg>
+              Delete
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <Modal open={confirmRestore} onClose={() => setConfirmRestore(false)} title="Restore section?">
+        <p className="text-xs text-muted mb-5">
+          <span className="font-semibold text-fg">{item.section.name}</span> will be restored to{' '}
+          <span className="font-semibold text-fg-2">{folderName}</span>
+          {snipCount > 0 && <>, and {snipCount} snip{snipCount !== 1 ? 's' : ''} will be re-assigned to it</>}.
+        </p>
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={() => setConfirmRestore(false)}>Cancel</Button>
+          <button
+            onClick={() => { dispatch({ type: 'RESTORE_TRASH_ITEM', payload: { id: item.id } }); setConfirmRestore(false) }}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${recoverButtonClasses}`}
+          >
+            Restore
+          </button>
+        </div>
+      </Modal>
+
+      <Modal open={confirmDelete} onClose={() => setConfirmDelete(false)} title="Permanently delete?">
+        <p className="text-xs text-muted mb-5">
+          Section <span className="font-semibold text-fg">{item.section.name}</span> will be permanently deleted. This cannot be undone.
         </p>
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={() => setConfirmDelete(false)}>Cancel</Button>
