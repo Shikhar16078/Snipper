@@ -508,7 +508,7 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
         <div className="flex items-center gap-2 app-no-drag">
           {/* New Snip */}
           <button
-            onClick={onAdd}
+            onClick={() => onAdd()}
             className="flex items-center gap-1.5 bg-accent hover:bg-accent/90 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors app-no-drag"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -655,7 +655,7 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
                     </div>
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={onAdd}
+                        onClick={() => onAdd()}
                         className="flex items-center gap-1.5 bg-accent hover:bg-accent/90 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
                       >
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -719,29 +719,6 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
               function renderDropLine(index: number) {
                 if (!isSectionDragging || sectionDropIndex !== index) return null
                 return <div className="h-0.5 rounded-full bg-accent -my-2 mx-1 pointer-events-none" />
-              }
-
-              function DragHandle({ sectionId }: { sectionId: string }) {
-                return (
-                  <span
-                    draggable
-                    onDragStart={(e) => {
-                      e.stopPropagation()
-                      setDraggingSectionId(sectionId)
-                      e.dataTransfer.setData('application/section-id', sectionId)
-                      e.dataTransfer.effectAllowed = 'move'
-                    }}
-                    onDragEnd={() => { setDraggingSectionId(null); setSectionDropIndex(null) }}
-                    className="flex-shrink-0 cursor-grab active:cursor-grabbing p-0.5 rounded opacity-0 group-hover:opacity-100 text-muted hover:text-fg-2 transition-opacity"
-                    title="Drag to reorder"
-                  >
-                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 16 16">
-                      <circle cx="5" cy="4" r="1.2" /><circle cx="11" cy="4" r="1.2" />
-                      <circle cx="5" cy="8" r="1.2" /><circle cx="11" cy="8" r="1.2" />
-                      <circle cx="5" cy="12" r="1.2" /><circle cx="11" cy="12" r="1.2" />
-                    </svg>
-                  </span>
-                )
               }
 
               return (
