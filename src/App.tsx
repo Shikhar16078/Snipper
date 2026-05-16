@@ -41,6 +41,20 @@ function AppShell() {
   const isResizing = useRef(false)
   const autoCheckingRef = useRef(false)
 
+  // Auto-hide scrollbars: add .is-scrolling on scroll, remove after 1s idle
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>
+    function onScroll(e: Event) {
+      const el = e.target as HTMLElement
+      if (!el?.classList) return
+      el.classList.add('is-scrolling')
+      clearTimeout(timer)
+      timer = setTimeout(() => el.classList.remove('is-scrolling'), 1000)
+    }
+    document.addEventListener('scroll', onScroll, true)
+    return () => { document.removeEventListener('scroll', onScroll, true); clearTimeout(timer) }
+  }, [])
+
   // Apply theme classes to <html>
   useEffect(() => {
     const html = document.documentElement

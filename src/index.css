@@ -299,8 +299,11 @@ html.dark.dark-nebula {
 
   ::-webkit-scrollbar { width: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: rgb(var(--border)); border-radius: 4px; }
-  ::-webkit-scrollbar-thumb:hover { background: rgb(var(--muted)); }
+  ::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 4px;
+    transition: background 0.3s ease;
+  }
 }
 
 /* Electron Draggable Regions */
@@ -314,25 +317,20 @@ html.dark.dark-nebula {
 /* Unified scrollbar style for editor panes */
 .snip-scroll {
   scrollbar-width: thin;
-  scrollbar-color: rgb(var(--border)) transparent;
+  scrollbar-color: transparent transparent;
 }
-
-.snip-scroll::-webkit-scrollbar {
-  width: 4px;
-}
-
-.snip-scroll::-webkit-scrollbar-track {
-  background: transparent;
-}
-
+.snip-scroll::-webkit-scrollbar { width: 4px; }
+.snip-scroll::-webkit-scrollbar-track { background: transparent; }
 .snip-scroll::-webkit-scrollbar-thumb {
-  background: rgb(var(--border));
+  background: transparent;
   border-radius: 4px;
+  transition: background 0.3s ease;
 }
 
-.snip-scroll::-webkit-scrollbar-thumb:hover {
-  background: rgb(var(--muted));
-}
+/* Scrollbar visible while scrolling — class toggled by JS with 1s debounce */
+.is-scrolling::-webkit-scrollbar-thumb { background: rgb(var(--border)); }
+.is-scrolling::-webkit-scrollbar-thumb:hover { background: rgb(var(--muted)); }
+.is-scrolling.snip-scroll { scrollbar-color: rgb(var(--border)) transparent; }
 
 /* Modal close — exact reverse of animate-pop */
 @keyframes modal-leave {

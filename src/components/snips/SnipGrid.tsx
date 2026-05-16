@@ -592,8 +592,8 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
       )}
 
       {/* ── Main content ── */}
-      <div className="flex-1 min-h-0 flex overflow-hidden">
-        <div className="flex-1 min-w-0">
+      <div className="flex-1 min-h-0 relative overflow-hidden">
+        <div className="absolute inset-0 flex flex-col">
           {(currentFolder && !isUnfiled && !state.selectedTagId && !starFilter) ? (
             /* ── Sections view ── */
             (() => {
@@ -721,7 +721,7 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
               }
 
               return (
-                <div className="flex-1 overflow-y-auto p-4 h-full space-y-5">
+                <div className="flex-1 overflow-y-auto p-4 pr-14 h-full space-y-5">
                   {renderDropLine(0)}
                   {orderedSectionDisplay.map((item, index) => {
                     const isDraggedItem = draggingSectionId === item.id
@@ -914,7 +914,7 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
               tagName={!q && !hasFilters && !starFilter && selectedTag ? selectedTag.name : undefined}
             />
           ) : starFilter ? (
-            <div className="flex-1 overflow-y-auto p-4 h-full">
+            <div className="flex-1 overflow-y-auto p-4 pr-14 h-full">
               {starredSnips.length === 0 ? (
                 /* ── Nothing starred: banner + all snips ── */
                 <>
@@ -1039,7 +1039,7 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
           ) : (
             /* ── Normal flat view ── */
             <div
-              className="flex-1 overflow-y-auto p-4 h-full"
+              className="flex-1 overflow-y-auto p-4 pr-14 h-full"
               onMouseDown={(e) => {
                 if (e.detail >= 2 && (e.target === e.currentTarget || (e.target as HTMLElement).tagName === 'DIV')) {
                   const target = e.target as HTMLElement
@@ -1072,11 +1072,8 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
         </div>
 
         {/* ── Right toolbar ── */}
-        <div
-          className="flex-shrink-0 border-l border-border"
-          style={{ width: 44 }}
-        >
-          <div className="w-[44px] h-full flex flex-col items-center py-2 gap-0.5 overflow-hidden">
+        <div className="absolute right-0 inset-y-0 overflow-y-auto flex flex-col px-2 py-4 pointer-events-none">
+          <div className="pointer-events-auto flex flex-col items-center py-2 px-1 gap-0.5 bg-panel border border-border rounded-2xl shadow-md m-auto">
             {/* Filter */}
             <div ref={filterRef}>
               <button
