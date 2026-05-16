@@ -271,10 +271,13 @@ function AppShell() {
     setEditTarget(snip)
   }
 
-  function openCreateEditor() {
+  const [createSectionId, setCreateSectionId] = useState<string | null>(null)
+
+  function openCreateEditor(sectionId?: string | null) {
     setTrashOpen(false)
     setHelpOpen(false)
     setEditTarget(null)
+    setCreateSectionId(sectionId ?? null)
     setCreateOpen(true)
   }
 
@@ -343,6 +346,7 @@ function AppShell() {
               ref={editorRef}
               mode="create"
               initialFolderId={state.selectedFolderId === '__unfiled__' ? '' : (state.selectedFolderId ?? '')}
+              initialSectionId={createSectionId}
               collapsed={collapsed}
               onToggleSidebar={toggleCollapse}
               onClose={() => setCreateOpen(false)}
