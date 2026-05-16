@@ -1,10 +1,12 @@
 import { useState, useRef, useEffect } from 'react'
-import type { Snip, Folder, SnipSort } from '../../types'
+import type { Snip, Folder, Section, SnipSort } from '../../types'
+import { generateId } from '../../utils/id'
 
 type PendingBulkDrop =
   | { type: 'move'; snipIds: string[]; folderId: string; folderName: string }
   | { type: 'tag';  snipIds: string[]; tagId: string; tagName: string; tagColor: string }
   | { type: 'trash'; snipIds: string[] }
+  | { type: 'section'; snipIds: string[]; sectionId: string | null; sectionName: string }
 import { useApp } from '../../store/AppContext'
 import { flattenFolders } from '../../utils/folders'
 import { SnipCard } from './SnipCard'
@@ -41,6 +43,10 @@ function getAllDescendantIds(folderId: string, folders: Folder[]): string[] {
   return children.flatMap((c) => [c.id, ...getAllDescendantIds(c.id, folders)])
 }
 
+type SectionDisplayItem =
+  | { kind: 'general'; id: '__general__'; _order: number }
+  | { kind: 'explicit'; id: string; section: Section; _order: number }
+
 function FilterChip({ label, onRemove, icon }: { label: string; onRemove: () => void; icon?: React.ReactNode }) {
   return (
     <span className="inline-flex items-center gap-1 bg-accent/12 text-accent border border-accent/25 rounded-full pl-2 pr-1 py-0.5 text-[10px] font-medium">
@@ -59,7 +65,7 @@ function FilterChip({ label, onRemove, icon }: { label: string; onRemove: () => 
 }
 
 interface SnipGridProps {
-  onAdd: () => void
+  onAdd: (sectionId?: string | null) => void
   onEdit: (snip: Snip) => void
   collapsed: boolean
   onToggleSidebar: () => void
@@ -101,6 +107,9 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
     setBulkModal(null)
     setDiscardConfirmOpen(false)
     setPendingBulkDrop(null)
+    setBulkMoveStep('folder')
+    setBulkMoveFolderTarget(null)
+    setPendingMoveSection(null)
   }
 
   function requestExitSelectionMode() {
@@ -117,14 +126,44 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
     })
   }
 
+  // Sections
+  const [sectionCollapsed, setSectionCollapsed] = useState<Record<string, boolean>>({})
+  const [renamingSectionId, setRenamingSectionId] = useState<string | null>(null)
+  const [renameSectionValue, setRenameSectionValue] = useState('')
+  const [dragOverSectionId, setDragOverSectionId] = useState<string | null>(null)
+  const [draggingSectionId, setDraggingSectionId] = useState<string | null>(null)
+  const [sectionDropIndex, setSectionDropIndex] = useState<number | null>(null)
+  const newSectionIdRef = useRef<string | null>(null)
+  const [deletingSectionId, setDeletingSectionId] = useState<string | null>(null)
+  const [bulkMoveStep, setBulkMoveStep] = useState<'folder' | 'section'>('folder')
+  const [bulkMoveFolderTarget, setBulkMoveFolderTarget] = useState<{ id: string; name: string } | null>(null)
+  const [pendingMoveSection, setPendingMoveSection] = useState<string | null>(null)
+
+  // Section Organizer modal
+  const [sectionOrganizerOpen, setSectionOrganizerOpen] = useState(false)
+  const [orgRenamingId, setOrgRenamingId] = useState<string | null>(null)
+  const [orgRenameValue, setOrgRenameValue] = useState('')
+  const [orgDraggingId, setOrgDraggingId] = useState<string | null>(null)
+  const [orgDropIndex, setOrgDropIndex] = useState<number | null>(null)
+  const [newSectionInput, setNewSectionInput] = useState('')
+  const [orgConfirmDeleteId, setOrgConfirmDeleteId] = useState<string | null>(null)
+  const [isAddingSection, setIsAddingSection] = useState(false)
+
+  const [filterPos, setFilterPos] = useState<{ top: number; right: number } | null>(null)
+  const [sortPos, setSortPos] = useState<{ top: number; right: number } | null>(null)
+
   const searchRef = useRef<HTMLInputElement>(null)
   const sortRef = useRef<HTMLDivElement>(null)
   const filterRef = useRef<HTMLDivElement>(null)
+  const filterDropdownRef = useRef<HTMLDivElement>(null)
+  const sortDropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!sortOpen) return
     function onOutside(e: MouseEvent) {
-      if (sortRef.current && !sortRef.current.contains(e.target as Node)) setSortOpen(false)
+      const inBtn = sortRef.current?.contains(e.target as Node)
+      const inDropdown = sortDropdownRef.current?.contains(e.target as Node)
+      if (!inBtn && !inDropdown) setSortOpen(false)
     }
     document.addEventListener('mousedown', onOutside)
     return () => document.removeEventListener('mousedown', onOutside)
@@ -133,7 +172,9 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
   useEffect(() => {
     if (!filterOpen) { setFolderSearch(''); return }
     function onOutside(e: MouseEvent) {
-      if (filterRef.current && !filterRef.current.contains(e.target as Node)) setFilterOpen(false)
+      const inBtn = filterRef.current?.contains(e.target as Node)
+      const inDropdown = filterDropdownRef.current?.contains(e.target as Node)
+      if (!inBtn && !inDropdown) setFilterOpen(false)
     }
     document.addEventListener('mousedown', onOutside)
     return () => document.removeEventListener('mousedown', onOutside)
@@ -249,6 +290,106 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
   const currentFolder = state.folders.find((f) => f.id === state.selectedFolderId)
   const title = selectedTag ? selectedTag.name : isUnfiled ? 'Unfiled' : currentFolder ? currentFolder.name : (state.allSnipsLabel || 'All Snips')
 
+  const folderSections = currentFolder && !state.selectedTagId && !isUnfiled
+    ? [...state.sections.filter((s) => s.folderId === currentFolder.id)].sort((a, b) => a.order - b.order)
+    : []
+  const hasSections = folderSections.length > 0
+
+  const generalDisplayOrder = currentFolder?.defaultSectionOrder ?? -1
+  const orderedSectionDisplay: SectionDisplayItem[] = (currentFolder && !state.selectedTagId && !isUnfiled) ? [
+    { kind: 'general' as const, id: '__general__' as const, _order: generalDisplayOrder },
+    ...folderSections.map((s) => ({ kind: 'explicit' as const, id: s.id, section: s, _order: s.order })),
+  ].sort((a, b) => a._order - b._order) : []
+
+  const allSectionIds = hasSections
+    ? [
+        '__general__',
+        ...folderSections.map((s) => s.id),
+      ]
+    : []
+  const allSectionsCollapsed = allSectionIds.length > 0 && allSectionIds.every((id) => sectionCollapsed[id] ?? false)
+
+  function toggleAllSections() {
+    if (allSectionsCollapsed) {
+      setSectionCollapsed({})
+    } else {
+      const next: Record<string, boolean> = {}
+      for (const id of allSectionIds) next[id] = true
+      setSectionCollapsed(next)
+    }
+  }
+
+  function addSection() {
+    if (!currentFolder) return
+    const id = generateId()
+    dispatch({ type: 'ADD_SECTION', payload: { id, folderId: currentFolder.id, name: 'New Section' } })
+    newSectionIdRef.current = id
+    setRenamingSectionId(id)
+    setRenameSectionValue('')
+    setIsAddingSection(true)
+  }
+
+  function handleSectionReorder(draggedId: string, targetDropIndex: number) {
+    if (!currentFolder) return
+    const currentIndex = orderedSectionDisplay.findIndex((item) => item.id === draggedId)
+    if (currentIndex === -1) return
+    if (targetDropIndex === currentIndex || targetDropIndex === currentIndex + 1) return
+    const newItems = [...orderedSectionDisplay]
+    const [moved] = newItems.splice(currentIndex, 1)
+    const insertAt = targetDropIndex > currentIndex ? targetDropIndex - 1 : targetDropIndex
+    newItems.splice(insertAt, 0, moved)
+    dispatch({
+      type: 'REORDER_SECTIONS_IN_FOLDER',
+      payload: { folderId: currentFolder.id, orderedIds: newItems.map((item) => item.id) },
+    })
+  }
+
+  function commitSectionRename(sectionId: string, name: string, isDefault: boolean) {
+    const trimmed = name.trim()
+    const isNew = newSectionIdRef.current === sectionId
+    newSectionIdRef.current = null
+    setRenamingSectionId(null)
+    setIsAddingSection(false)
+    if (!trimmed) {
+      if (isNew) dispatch({ type: 'DELETE_SECTION', payload: { sectionId } })
+      return
+    }
+    if (isDefault) {
+      dispatch({ type: 'RENAME_DEFAULT_SECTION', payload: { folderId: currentFolder!.id, name: trimmed } })
+    } else {
+      dispatch({ type: 'RENAME_SECTION', payload: { sectionId, name: trimmed } })
+    }
+  }
+
+  function cancelSectionRename(sectionId: string) {
+    if (newSectionIdRef.current === sectionId) {
+      dispatch({ type: 'DELETE_SECTION', payload: { sectionId } })
+      newSectionIdRef.current = null
+    }
+    setRenamingSectionId(null)
+    setIsAddingSection(false)
+  }
+
+  function handleSectionDragOver(e: React.DragEvent, sectionId: string | null) {
+    if (!e.dataTransfer.types.includes('text/plain')) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    setDragOverSectionId(sectionId ?? '__general__')
+  }
+
+  function handleSectionDrop(e: React.DragEvent, sectionId: string | null, sectionName: string) {
+    setDragOverSectionId(null)
+    if (e.dataTransfer.types.includes('application/json')) {
+      const ids = JSON.parse(e.dataTransfer.getData('application/json')) as string[]
+      document.dispatchEvent(new CustomEvent('snipper:bulk-drop-pending', {
+        detail: { type: 'section', snipIds: ids, sectionId, sectionName } satisfies PendingBulkDrop,
+      }))
+    } else {
+      const snipId = e.dataTransfer.getData('text/plain')
+      if (snipId) dispatch({ type: 'SET_SNIP_SECTION', payload: { snipId, sectionId } })
+    }
+  }
+
   const flatFolders = flattenFolders(state.folders)
   const folderQ = folderSearch.trim().toLowerCase()
   const filteredFolderList = folderQ
@@ -340,216 +481,20 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
           </div>
         </div>
 
-        {/* Filter (search scope) */}
-        <div ref={filterRef} className="relative app-no-drag">
+        <div className="flex items-center gap-2 app-no-drag">
+          {/* New Snip */}
           <button
-            onClick={() => setFilterOpen((v) => !v)}
-            title="Filter snips"
-            className={`relative p-1.5 rounded-md transition-colors ${
-              hasFilters || filterOpen
-                ? 'text-accent bg-accent/10'
-                : 'text-muted hover:text-fg hover:bg-fg/8'
-            }`}
+            onClick={onAdd}
+            className="flex items-center gap-1.5 bg-accent hover:bg-accent/90 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors app-no-drag"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
-            {filterCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-accent text-white text-[8px] font-bold rounded-full flex items-center justify-center leading-none">
-                {filterCount > 9 ? '9+' : filterCount}
-              </span>
-            )}
+            New Snip
           </button>
 
-          {/* Filter dropdown */}
-          {filterOpen && (
-            <div className="absolute right-0 top-full mt-1 w-56 bg-panel border border-border rounded-xl shadow-xl z-50 animate-pop overflow-hidden">
-              <div className="p-2.5">
-                <p className="text-[10px] font-semibold tracking-widest uppercase text-muted mb-2 px-1">Search in folders</p>
-                <div className="relative mb-2">
-                  <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-muted pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                  <input
-                    type="text"
-                    value={folderSearch}
-                    onChange={(e) => setFolderSearch(e.target.value)}
-                    placeholder="Search folders…"
-                    className="w-full bg-surface border border-border rounded-lg pl-7 pr-2 py-1 text-[11px] text-fg placeholder-muted focus:outline-none focus:border-accent transition-colors"
-                  />
-                </div>
-                <div className="max-h-48 overflow-y-auto space-y-0.5">
-                  {flatFolders.length === 0 ? (
-                    <p className="px-2 py-1.5 text-[11px] text-muted">No folders yet</p>
-                  ) : filteredFolderList.length === 0 ? (
-                    <p className="px-2 py-1.5 text-[11px] text-muted">No folders found</p>
-                  ) : (
-                    filteredFolderList.map(({ folder, depth }) => {
-                      const checked = filterFolderIds.has(folder.id)
-                      return (
-                        <button
-                          key={folder.id}
-                          onClick={() => toggleFolderId(folder.id)}
-                          style={{ paddingLeft: `${8 + depth * 12}px` }}
-                          className={`w-full text-left flex items-center gap-2 pr-2 py-1 rounded-lg text-xs transition-colors ${
-                            checked ? 'bg-accent/10 text-accent' : 'text-fg-2 hover:text-fg hover:bg-fg/5'
-                          }`}
-                        >
-                          <svg className={`w-3 h-3 flex-shrink-0 ${checked ? 'text-accent' : 'text-muted'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
-                          </svg>
-                          <span className="flex-1 truncate">{folder.name}</span>
-                          {checked && (
-                            <svg className="w-3 h-3 flex-shrink-0 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                            </svg>
-                          )}
-                        </button>
-                      )
-                    })
-                  )}
-                </div>
-              </div>
-              {hasFilters && (
-                <div className="px-3 py-2 border-t border-border">
-                  <button
-                    onClick={() => { clearFilters(); setFilterOpen(false) }}
-                    className="w-full text-center text-[11px] text-muted hover:text-fg transition-colors"
-                  >
-                    Clear all
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
+          <Settings onOpenHelp={onOpenHelp} onOpenImport={onOpenImport} onOpenExport={onOpenExport} />
         </div>
-
-        <div className="w-px h-4 bg-border flex-shrink-0" />
-
-        {/* Star filter */}
-        <button
-          onClick={() => setStarFilter((v) => !v)}
-          title={starFilter ? 'Show all snips' : 'Show starred only'}
-          className={`p-1.5 rounded-md transition-colors app-no-drag ${
-            starFilter ? 'text-amber-400 bg-amber-400/15' : 'text-muted hover:text-fg hover:bg-fg/8'
-          }`}
-        >
-          <svg className="w-3.5 h-3.5" fill={starFilter ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={starFilter ? 0 : 2} d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-          </svg>
-        </button>
-
-        <div className="w-px h-4 bg-border flex-shrink-0" />
-
-        {/* Sort */}
-        <div ref={sortRef} className="relative app-no-drag">
-          <button
-            onClick={() => setSortOpen((v) => !v)}
-            title="Sort snippets"
-            className={`p-1.5 rounded-md transition-colors ${
-              state.snipSort !== 'updated' || sortOpen
-                ? 'text-accent bg-accent/10'
-                : 'text-muted hover:text-fg hover:bg-fg/8'
-            }`}
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
-            </svg>
-          </button>
-          {sortOpen && (
-            <div className="absolute right-0 top-full mt-1 w-40 bg-panel border border-border rounded-xl shadow-xl py-1.5 z-50 animate-pop">
-              {SORT_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  onClick={() => { dispatch({ type: 'SET_SNIP_SORT', payload: opt.value }); setSortOpen(false) }}
-                  className={`w-full text-left px-3 py-1.5 text-xs flex items-center justify-between gap-2 transition-colors ${
-                    state.snipSort === opt.value
-                      ? 'text-accent font-semibold'
-                      : 'text-fg-2 hover:text-fg hover:bg-fg/5'
-                  }`}
-                >
-                  {opt.label}
-                  {state.snipSort === opt.value && (
-                    <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                    </svg>
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="w-px h-4 bg-border flex-shrink-0" />
-
-        {/* Expand-all toggle */}
-        <button
-          onClick={() => setExpandAll((x) => !x)}
-          title={expandAll ? 'Collapse cards' : 'Expand all cards'}
-          className={`p-1.5 rounded-md transition-colors app-no-drag ${
-            expandAll ? 'text-accent bg-accent/10' : 'text-muted hover:text-fg hover:bg-fg/8'
-          }`}
-        >
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d={expandAll
-                ? 'M5 15l7-7 7 7'
-                : 'M4 8V4m0 0h4M4 4l5 5M20 8V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5M20 16v4m0 0h-4m4 0l-5-5'
-              }
-            />
-          </svg>
-        </button>
-
-        {/* View mode toggle */}
-        <div className="flex items-center bg-fg/6 rounded-lg p-0.5">
-          <button
-            onClick={() => dispatch({ type: 'SET_VIEW_MODE', payload: { mode: 'grid' } })}
-            className={`p-1.5 rounded-md transition-colors app-no-drag ${state.viewMode === 'grid' ? 'bg-panel text-fg shadow-sm' : 'text-muted hover:text-fg-2'}`}
-            title="Grid view"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-            </svg>
-          </button>
-          <button
-            onClick={() => dispatch({ type: 'SET_VIEW_MODE', payload: { mode: 'list' } })}
-            className={`p-1.5 rounded-md transition-colors app-no-drag ${state.viewMode === 'list' ? 'bg-panel text-fg shadow-sm' : 'text-muted hover:text-fg-2'}`}
-            title="List view"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
-        </div>
-
-        {/* Select */}
-        <button
-          onClick={() => { if (isSelectionMode) requestExitSelectionMode(); else setIsSelectionMode(true) }}
-          title={isSelectionMode ? 'Exit selection mode' : 'Select multiple snips'}
-          className={`p-1.5 rounded-md transition-colors app-no-drag ${
-            isSelectionMode ? 'text-accent bg-accent/10' : 'text-muted hover:text-fg hover:bg-fg/8'
-          }`}
-        >
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <rect x="3" y="3" width="7" height="7" rx="1" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-            <rect x="14" y="3" width="7" height="7" rx="1" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-            <rect x="3" y="14" width="7" height="7" rx="1" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 17.5h7M17.5 14v7" />
-          </svg>
-        </button>
-
-        {/* New Snip */}
-        <button
-          onClick={onAdd}
-          className="flex items-center gap-1.5 bg-accent hover:bg-accent/90 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors app-no-drag"
-        >
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          New Snip
-        </button>
-
-        <Settings onOpenHelp={onOpenHelp} onOpenImport={onOpenImport} onOpenExport={onOpenExport} />
       </div>
 
       {/* ── Selection action bar ── */}
@@ -649,7 +594,318 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
       {/* ── Main content ── */}
       <div className="flex-1 min-h-0 flex overflow-hidden">
         <div className="flex-1 min-w-0">
-          {displaySnips.length === 0 ? (
+          {(currentFolder && !isUnfiled && !state.selectedTagId && !starFilter) ? (
+            /* ── Sections view ── */
+            (() => {
+              if (q && displaySnips.length === 0) {
+                return (
+                  <EmptyState
+                    onAdd={onAdd}
+                    isSearching={true}
+                    isFiltering={false}
+                    onClearFilters={clearFilters}
+                  />
+                )
+              }
+
+              const validSectionIds = new Set(folderSections.map((s) => s.id))
+              const unsectioned = displaySnips.filter((s) => !s.sectionId || !validSectionIds.has(s.sectionId))
+              const snipsBySection = Object.fromEntries(
+                folderSections.map((sec) => [sec.id, displaySnips.filter((s) => s.sectionId === sec.id)])
+              )
+              const defaultName = currentFolder?.defaultSectionName ?? 'General'
+              const isGeneralRenaming = renamingSectionId === '__general__'
+
+              // Fully empty folder: no sections and no snips
+              if (orderedSectionDisplay.length === 0 && displaySnips.length === 0) {
+                return (
+                  <div className="flex-1 flex flex-col items-center justify-center gap-5 h-full p-8">
+                    <div className="w-14 h-14 rounded-2xl bg-fg/5 border border-border flex items-center justify-center">
+                      <svg className="w-7 h-7 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
+                      </svg>
+                    </div>
+                    <div className="text-center space-y-1.5">
+                      <p className="text-sm font-semibold text-fg">This folder is empty</p>
+                      <p className="text-xs text-muted max-w-[260px] leading-relaxed">Add your first snip, or create sections to keep things organized.</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={onAdd}
+                        className="flex items-center gap-1.5 bg-accent hover:bg-accent/90 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                        New Snip
+                      </button>
+                      <button
+                        onClick={addSection}
+                        className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-border text-fg-2 hover:text-fg hover:bg-fg/8 transition-colors"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 15v6m3-3h-6" />
+                        </svg>
+                        New Section
+                      </button>
+                    </div>
+                  </div>
+                )
+              }
+
+              function renderSectionGrid(snips: Snip[], sectionIdForAdd?: string | null) {
+                return snips.length === 0 ? (
+                  <div className="flex items-center gap-2 py-3 px-3 rounded-lg border border-dashed border-border/60 my-0.5">
+                    <svg className="w-3.5 h-3.5 text-muted/50 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <span className="text-xs text-muted/70">No snips yet</span>
+                    <button onClick={() => onAdd(sectionIdForAdd)} className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-accent/10 hover:bg-accent/20 text-accent text-xs font-medium transition-colors">
+                      <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+                      </svg>
+                      New Snip
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    className={state.viewMode === 'grid' ? 'grid gap-3' : 'flex flex-col gap-2'}
+                    style={state.viewMode === 'grid' ? { gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' } : undefined}
+                  >
+                    {snips.map((snip) => (
+                      <SnipCard
+                        key={snip.id}
+                        snip={snip}
+                        onEdit={onEdit}
+                        expanded={expandAll}
+                        selected={selectedSnipIds.has(snip.id)}
+                        isSelectionMode={isSelectionMode}
+                        onToggleSelect={toggleSnipSelection}
+                        onBulkContextMenu={(x, y) => setBulkContextPos({ x, y })}
+                        bulkDragIds={isSelectionMode && selectedSnipIds.has(snip.id) ? [...selectedSnipIds] : undefined}
+                      />
+                    ))}
+                  </div>
+                )
+              }
+
+              const isSectionDragging = draggingSectionId !== null
+
+              function renderDropLine(index: number) {
+                if (!isSectionDragging || sectionDropIndex !== index) return null
+                return <div className="h-0.5 rounded-full bg-accent -my-2 mx-1 pointer-events-none" />
+              }
+
+              function DragHandle({ sectionId }: { sectionId: string }) {
+                return (
+                  <span
+                    draggable
+                    onDragStart={(e) => {
+                      e.stopPropagation()
+                      setDraggingSectionId(sectionId)
+                      e.dataTransfer.setData('application/section-id', sectionId)
+                      e.dataTransfer.effectAllowed = 'move'
+                    }}
+                    onDragEnd={() => { setDraggingSectionId(null); setSectionDropIndex(null) }}
+                    className="flex-shrink-0 cursor-grab active:cursor-grabbing p-0.5 rounded opacity-0 group-hover:opacity-100 text-muted hover:text-fg-2 transition-opacity"
+                    title="Drag to reorder"
+                  >
+                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 16 16">
+                      <circle cx="5" cy="4" r="1.2" /><circle cx="11" cy="4" r="1.2" />
+                      <circle cx="5" cy="8" r="1.2" /><circle cx="11" cy="8" r="1.2" />
+                      <circle cx="5" cy="12" r="1.2" /><circle cx="11" cy="12" r="1.2" />
+                    </svg>
+                  </span>
+                )
+              }
+
+              return (
+                <div className="flex-1 overflow-y-auto p-4 h-full space-y-5">
+                  {renderDropLine(0)}
+                  {orderedSectionDisplay.map((item, index) => {
+                    const isDraggedItem = draggingSectionId === item.id
+
+                    if (item.kind === 'general') {
+                      if (q && unsectioned.length === 0) return null
+                      const isCollapsed = sectionCollapsed.__general__ ?? false
+                      const isDragOver = dragOverSectionId === '__general__' && !isSectionDragging
+                      return (
+                        <div
+                          key="__general__"
+                          style={{ opacity: isDraggedItem ? 0.4 : 1 }}
+                          onDragOver={(e) => {
+                            if (!e.dataTransfer.types.includes('application/section-id')) return
+                            e.preventDefault()
+                            e.dataTransfer.dropEffect = 'move'
+                            const rect = e.currentTarget.getBoundingClientRect()
+                            setSectionDropIndex(e.clientY < rect.top + rect.height / 2 ? index : index + 1)
+                          }}
+                          onDrop={(e) => {
+                            if (!e.dataTransfer.types.includes('application/section-id')) return
+                            e.preventDefault()
+                            const draggedId = e.dataTransfer.getData('application/section-id')
+                            handleSectionReorder(draggedId, sectionDropIndex ?? orderedSectionDisplay.length)
+                            setSectionDropIndex(null)
+                            setDraggingSectionId(null)
+                          }}
+                        >
+                          <div
+                            className={`group flex items-center gap-1.5 mb-2.5 py-1 px-2 -mx-2 rounded-lg transition-colors ${
+                              isDragOver ? 'bg-accent/10 outline outline-1 outline-accent/30' : ''
+                            }`}
+                            onDragOver={(e) => {
+                              if (e.dataTransfer.types.includes('text/plain')) handleSectionDragOver(e, null)
+                            }}
+                            onDragLeave={() => {
+                              if (!isSectionDragging) setDragOverSectionId(null)
+                            }}
+                            onDrop={(e) => {
+                              if (!e.dataTransfer.types.includes('application/section-id')) {
+                                handleSectionDrop(e, null, defaultName)
+                                e.stopPropagation()
+                              }
+                            }}
+                          >
+                            <button
+                              onClick={() => setSectionCollapsed((p) => ({ ...p, __general__: !isCollapsed }))}
+                              className="flex-shrink-0"
+                            >
+                              <svg
+                                className={`w-3 h-3 text-muted transition-transform duration-150 ${isCollapsed ? '' : 'rotate-90'}`}
+                                fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                              >
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                              </svg>
+                            </button>
+                            {isGeneralRenaming ? (
+                              <input
+                                autoFocus
+                                value={renameSectionValue}
+                                onChange={(e) => setRenameSectionValue(e.target.value)}
+                                onBlur={() => commitSectionRename('__general__', renameSectionValue, true)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') e.currentTarget.blur()
+                                  if (e.key === 'Escape') { cancelSectionRename('__general__'); e.preventDefault() }
+                                }}
+                                placeholder="Section name…"
+                                className="flex-1 text-xs font-semibold text-fg bg-transparent border-0 border-b border-accent outline-none min-w-0 placeholder:text-muted/60"
+                              />
+                            ) : (
+                              <span className="text-xs font-semibold text-fg-2">{defaultName}</span>
+                            )}
+                            <span className="text-[10px] text-muted tabular-nums">{unsectioned.length}</span>
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateRows: isCollapsed ? '0fr' : '1fr', transition: 'grid-template-rows 220ms ease' }}>
+                            <div style={{ overflow: 'hidden' }}>{renderSectionGrid(unsectioned, null)}</div>
+                          </div>
+                          {renderDropLine(index + 1)}
+                        </div>
+                      )
+                    }
+
+                    const { section } = item
+                    const sectionSnips = snipsBySection[section.id] ?? []
+                    if (q && sectionSnips.length === 0) return null
+                    const isCollapsed = sectionCollapsed[section.id] ?? false
+                    const isDragOver = dragOverSectionId === section.id && !isSectionDragging
+                    const isRenaming = renamingSectionId === section.id
+
+                    return (
+                      <div
+                        key={section.id}
+                        style={{ opacity: isDraggedItem ? 0.4 : 1 }}
+                        onDragOver={(e) => {
+                          if (!e.dataTransfer.types.includes('application/section-id')) return
+                          e.preventDefault()
+                          e.dataTransfer.dropEffect = 'move'
+                          const rect = e.currentTarget.getBoundingClientRect()
+                          setSectionDropIndex(e.clientY < rect.top + rect.height / 2 ? index : index + 1)
+                        }}
+                        onDrop={(e) => {
+                          if (!e.dataTransfer.types.includes('application/section-id')) return
+                          e.preventDefault()
+                          const draggedId = e.dataTransfer.getData('application/section-id')
+                          handleSectionReorder(draggedId, sectionDropIndex ?? orderedSectionDisplay.length)
+                          setSectionDropIndex(null)
+                          setDraggingSectionId(null)
+                        }}
+                      >
+                        <div
+                          className={`group flex items-center gap-1.5 mb-2.5 py-1 px-2 -mx-2 rounded-lg transition-colors ${
+                            isDragOver ? 'bg-accent/10 outline outline-1 outline-accent/30' : ''
+                          }`}
+                          onDragOver={(e) => {
+                            if (e.dataTransfer.types.includes('text/plain')) handleSectionDragOver(e, section.id)
+                          }}
+                          onDragLeave={() => {
+                            if (!isSectionDragging) setDragOverSectionId(null)
+                          }}
+                          onDrop={(e) => {
+                            if (!e.dataTransfer.types.includes('application/section-id')) {
+                              handleSectionDrop(e, section.id, section.name)
+                              e.stopPropagation()
+                            }
+                          }}
+                        >
+                          <button
+                            onClick={() => setSectionCollapsed((p) => ({ ...p, [section.id]: !isCollapsed }))}
+                            className="flex-shrink-0"
+                          >
+                            <svg
+                              className={`w-3 h-3 text-muted transition-transform duration-150 ${isCollapsed ? '' : 'rotate-90'}`}
+                              fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                            </svg>
+                          </button>
+                          {isRenaming ? (
+                            <input
+                              autoFocus
+                              value={renameSectionValue}
+                              onChange={(e) => setRenameSectionValue(e.target.value)}
+                              onBlur={() => commitSectionRename(section.id, renameSectionValue, false)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') e.currentTarget.blur()
+                                if (e.key === 'Escape') { cancelSectionRename(section.id); e.preventDefault() }
+                              }}
+                              placeholder="Section name…"
+                              className="flex-1 text-xs font-semibold text-fg bg-transparent border-0 border-b border-accent outline-none min-w-0 placeholder:text-muted/60"
+                            />
+                          ) : (
+                            <span className="text-xs font-semibold text-fg-2">{section.name}</span>
+                          )}
+                          <span className="text-[10px] text-muted tabular-nums">{sectionSnips.length}</span>
+                        </div>
+                        {!(isAddingSection && renamingSectionId === section.id) && (
+                          <div style={{ display: 'grid', gridTemplateRows: isCollapsed ? '0fr' : '1fr', transition: 'grid-template-rows 220ms ease' }}>
+                            <div style={{ overflow: 'hidden' }}>{renderSectionGrid(sectionSnips, section.id)}</div>
+                          </div>
+                        )}
+                        {renderDropLine(index + 1)}
+                      </div>
+                    )
+                  })}
+
+                  {/* Fallback: render unsectioned snips when General heading is disabled */}
+
+                  {/* Quick-add section divider */}
+                  {!isAddingSection && (
+                    <button onClick={addSection} className="group flex items-center w-full gap-2 py-3">
+                      <span className="flex-1 h-px bg-border group-hover:bg-accent/40 transition-colors duration-150" />
+                      <span className="flex items-center gap-1.5 border border-border group-hover:border-accent/40 bg-surface rounded-md px-2.5 py-0.5 flex-shrink-0 text-[11px] font-semibold text-muted group-hover:text-accent transition-colors duration-150">
+                        <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+                        </svg>
+                        New Section
+                      </span>
+                      <span className="flex-1 h-px bg-border group-hover:bg-accent/40 transition-colors duration-150" />
+                    </button>
+                  )}
+                </div>
+              )
+            })()
+          ) : displaySnips.length === 0 ? (
             <EmptyState
               onAdd={onAdd}
               isSearching={!!q}
@@ -815,53 +1071,605 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
           )}
         </div>
 
+        {/* ── Right toolbar ── */}
+        <div
+          className="flex-shrink-0 border-l border-border"
+          style={{ width: 44 }}
+        >
+          <div className="w-[44px] h-full flex flex-col items-center py-2 gap-0.5 overflow-hidden">
+            {/* Filter */}
+            <div ref={filterRef}>
+              <button
+                onClick={() => {
+                  if (!filterOpen && filterRef.current) {
+                    const rect = filterRef.current.getBoundingClientRect()
+                    setFilterPos({ top: rect.top, right: window.innerWidth - rect.left + 4 })
+                  }
+                  setFilterOpen((v) => !v)
+                }}
+                title="Filter snips"
+                className={`relative p-1.5 rounded-md transition-colors ${
+                  hasFilters || filterOpen
+                    ? 'text-accent bg-accent/10'
+                    : 'text-muted hover:text-fg hover:bg-fg/8'
+                }`}
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                </svg>
+                {filterCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-accent text-white text-[8px] font-bold rounded-full flex items-center justify-center leading-none">
+                    {filterCount > 9 ? '9+' : filterCount}
+                  </span>
+                )}
+              </button>
+            </div>
+            {filterOpen && filterPos && (
+              <div
+                ref={filterDropdownRef}
+                style={{ position: 'fixed', top: filterPos.top, right: filterPos.right }}
+                className="w-56 bg-panel border border-border rounded-xl shadow-xl z-[200] animate-pop overflow-hidden"
+              >
+                <div className="p-2.5">
+                  <p className="text-[10px] font-semibold tracking-widest uppercase text-muted mb-2 px-1">Search in folders</p>
+                  <div className="relative mb-2">
+                    <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-muted pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    <input
+                      type="text"
+                      value={folderSearch}
+                      onChange={(e) => setFolderSearch(e.target.value)}
+                      placeholder="Search folders…"
+                      className="w-full bg-surface border border-border rounded-lg pl-7 pr-2 py-1 text-[11px] text-fg placeholder-muted focus:outline-none focus:border-accent transition-colors"
+                    />
+                  </div>
+                  <div className="max-h-48 overflow-y-auto space-y-0.5">
+                    {flatFolders.length === 0 ? (
+                      <p className="px-2 py-1.5 text-[11px] text-muted">No folders yet</p>
+                    ) : filteredFolderList.length === 0 ? (
+                      <p className="px-2 py-1.5 text-[11px] text-muted">No folders found</p>
+                    ) : (
+                      filteredFolderList.map(({ folder, depth }) => {
+                        const checked = filterFolderIds.has(folder.id)
+                        return (
+                          <button
+                            key={folder.id}
+                            onClick={() => toggleFolderId(folder.id)}
+                            style={{ paddingLeft: `${8 + depth * 12}px` }}
+                            className={`w-full text-left flex items-center gap-2 pr-2 py-1 rounded-lg text-xs transition-colors ${
+                              checked ? 'bg-accent/10 text-accent' : 'text-fg-2 hover:text-fg hover:bg-fg/5'
+                            }`}
+                          >
+                            <svg className={`w-3 h-3 flex-shrink-0 ${checked ? 'text-accent' : 'text-muted'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
+                            </svg>
+                            <span className="flex-1 truncate">{folder.name}</span>
+                            {checked && (
+                              <svg className="w-3 h-3 flex-shrink-0 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                              </svg>
+                            )}
+                          </button>
+                        )
+                      })
+                    )}
+                  </div>
+                </div>
+                {hasFilters && (
+                  <div className="px-3 py-2 border-t border-border">
+                    <button
+                      onClick={() => { clearFilters(); setFilterOpen(false) }}
+                      className="w-full text-center text-[11px] text-muted hover:text-fg transition-colors"
+                    >
+                      Clear all
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Star filter */}
+            <button
+              onClick={() => setStarFilter((v) => !v)}
+              title={starFilter ? 'Show all snips' : 'Show starred only'}
+              className={`p-1.5 rounded-md transition-colors ${
+                starFilter ? 'text-amber-400 bg-amber-400/15' : 'text-muted hover:text-fg hover:bg-fg/8'
+              }`}
+            >
+              <svg className="w-3.5 h-3.5" fill={starFilter ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={starFilter ? 0 : 2} d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+              </svg>
+            </button>
+
+            <div className="w-5 h-px bg-border/80 my-0.5 flex-shrink-0" />
+
+            {/* Sort */}
+            <div ref={sortRef}>
+              <button
+                onClick={() => {
+                  if (!sortOpen && sortRef.current) {
+                    const rect = sortRef.current.getBoundingClientRect()
+                    setSortPos({ top: rect.top, right: window.innerWidth - rect.left + 4 })
+                  }
+                  setSortOpen((v) => !v)
+                }}
+                title="Sort snippets"
+                className={`p-1.5 rounded-md transition-colors ${
+                  state.snipSort !== 'updated' || sortOpen
+                    ? 'text-accent bg-accent/10'
+                    : 'text-muted hover:text-fg hover:bg-fg/8'
+                }`}
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
+                </svg>
+              </button>
+            </div>
+            {sortOpen && sortPos && (
+              <div
+                ref={sortDropdownRef}
+                style={{ position: 'fixed', top: sortPos.top, right: sortPos.right }}
+                className="w-40 bg-panel border border-border rounded-xl shadow-xl py-1.5 z-[200] animate-pop"
+              >
+                {SORT_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => { dispatch({ type: 'SET_SNIP_SORT', payload: opt.value }); setSortOpen(false) }}
+                    className={`w-full text-left px-3 py-1.5 text-xs flex items-center justify-between gap-2 transition-colors ${
+                      state.snipSort === opt.value
+                        ? 'text-accent font-semibold'
+                        : 'text-fg-2 hover:text-fg hover:bg-fg/5'
+                    }`}
+                  >
+                    {opt.label}
+                    {state.snipSort === opt.value && (
+                      <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="w-5 h-px bg-border/80 my-0.5 flex-shrink-0" />
+
+            {/* Expand-all toggle */}
+            <button
+              onClick={() => setExpandAll((x) => !x)}
+              title={expandAll ? 'Collapse cards' : 'Expand all cards'}
+              className={`p-1.5 rounded-md transition-colors ${
+                expandAll ? 'text-accent bg-accent/10' : 'text-muted hover:text-fg hover:bg-fg/8'
+              }`}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d={expandAll
+                    ? 'M5 15l7-7 7 7'
+                    : 'M4 8V4m0 0h4M4 4l5 5M20 8V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5M20 16v4m0 0h-4m4 0l-5-5'
+                  }
+                />
+              </svg>
+            </button>
+
+            {/* View mode toggle */}
+            <div className="flex flex-col items-center bg-fg/6 rounded-lg p-0.5">
+              <button
+                onClick={() => dispatch({ type: 'SET_VIEW_MODE', payload: { mode: 'grid' } })}
+                className={`p-1.5 rounded-md transition-colors ${state.viewMode === 'grid' ? 'bg-panel text-fg shadow-sm' : 'text-muted hover:text-fg-2'}`}
+                title="Grid view"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                </svg>
+              </button>
+              <button
+                onClick={() => dispatch({ type: 'SET_VIEW_MODE', payload: { mode: 'list' } })}
+                className={`p-1.5 rounded-md transition-colors ${state.viewMode === 'list' ? 'bg-panel text-fg shadow-sm' : 'text-muted hover:text-fg-2'}`}
+                title="List view"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="w-5 h-px bg-border/80 my-0.5 flex-shrink-0" />
+
+            {/* Multi-select */}
+            <button
+              onClick={() => { if (isSelectionMode) requestExitSelectionMode(); else setIsSelectionMode(true) }}
+              title={isSelectionMode ? 'Exit selection mode' : 'Select multiple snips'}
+              className={`p-1.5 rounded-md transition-colors ${
+                isSelectionMode ? 'text-accent bg-accent/10' : 'text-muted hover:text-fg hover:bg-fg/8'
+              }`}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <rect x="3" y="3" width="7" height="7" rx="1" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                <rect x="14" y="3" width="7" height="7" rx="1" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                <rect x="3" y="14" width="7" height="7" rx="1" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 17.5h7M17.5 14v7" />
+              </svg>
+            </button>
+
+            {/* Section controls — only when a specific folder is selected */}
+            {currentFolder && !isUnfiled && !state.selectedTagId && (
+              <>
+                <div className="w-5 h-px bg-border/80 my-0.5 flex-shrink-0" />
+                {hasSections && (
+                  <button
+                    onClick={toggleAllSections}
+                    title={allSectionsCollapsed ? 'Expand all sections' : 'Collapse all sections'}
+                    className="p-1.5 rounded-md transition-colors text-muted hover:text-fg hover:bg-fg/8"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      {allSectionsCollapsed ? (
+                        <>
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 18l4 4 4-4" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 22v-8" />
+                        </>
+                      ) : (
+                        <>
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 22l4-4 4 4" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18v-4" />
+                        </>
+                      )}
+                    </svg>
+                  </button>
+                )}
+                <button
+                  onClick={() => { setNewSectionInput(''); setOrgRenamingId(null); setSectionOrganizerOpen(true) }}
+                  title="Organize sections"
+                  className={`p-1.5 rounded-md transition-colors ${sectionOrganizerOpen ? 'text-accent bg-accent/10' : 'text-muted hover:text-fg hover:bg-fg/8'}`}
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5h12M9 12h12M9 19h12" />
+                    <circle cx="5" cy="5" r="1.5" fill="currentColor" stroke="none" />
+                    <circle cx="5" cy="12" r="1.5" fill="currentColor" stroke="none" />
+                    <circle cx="5" cy="19" r="1.5" fill="currentColor" stroke="none" />
+                  </svg>
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+
       </div>
 
       {/* ── Tips footer ── */}
       <TipsFooter visible={state.tipsEnabled} />
 
-      {/* ── Bulk Move modal ── */}
-      <Modal open={bulkModal === 'move'} onClose={() => setBulkModal(null)} title="Move to folder">
-        <div className="relative mb-3">
-          <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-          <input
-            type="text"
-            value={bulkMoveSearch}
-            onChange={(e) => setBulkMoveSearch(e.target.value)}
-            placeholder="Search folders…"
-            autoFocus
-            className="w-full bg-surface border border-border rounded-lg pl-8 pr-3 py-1.5 text-xs text-fg placeholder-muted focus:outline-none focus:border-accent transition-colors"
-          />
-        </div>
-        {(() => {
-          const q = bulkMoveSearch.trim().toLowerCase()
-          const all = flattenFolders(state.folders)
-          const filtered = q ? all.filter(({ folder }) => folder.name.toLowerCase().includes(q)) : all
-          return filtered.length === 0 ? (
-            <p className="text-xs text-muted py-2">{state.folders.length === 0 ? 'No folders yet.' : 'No folders found.'}</p>
-          ) : (
-            <div className="max-h-52 overflow-y-auto -mx-1">
-              {filtered.map(({ folder, depth }) => (
-                <button
-                  key={folder.id}
-                  onClick={() => {
-                    for (const id of selectedSnipIds) dispatch({ type: 'MOVE_SNIP', payload: { id, folderId: folder.id } })
-                    exitSelectionMode()
-                  }}
-                  style={{ paddingLeft: `${8 + depth * 12}px` }}
-                  className="w-full text-left flex items-center gap-2 pr-3 py-1.5 rounded-lg text-xs text-fg-2 hover:text-fg hover:bg-fg/5 transition-colors"
-                >
-                  <svg className="w-3.5 h-3.5 flex-shrink-0 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
-                  </svg>
-                  <span className="truncate">{folder.name}</span>
-                </button>
-              ))}
+      {/* ── Delete section confirm ── */}
+      {deletingSectionId && (() => {
+        const section = state.sections.find((s) => s.id === deletingSectionId)
+        const sectionName = section?.name ?? 'this section'
+        const snipCount = state.snips.filter((s) => s.sectionId === deletingSectionId).length
+        const folder = section ? state.folders.find((f) => f.id === section.folderId) : null
+        const defaultName = folder?.defaultSectionName ?? 'General'
+        return (
+          <Modal open={true} onClose={() => setDeletingSectionId(null)} title="Delete section?">
+            <p className="text-xs text-muted mb-5">
+              <span className="font-semibold text-fg">"{sectionName}"</span> will be moved to Trash.
+              {snipCount > 0 && (
+                <> The <span className="font-semibold text-fg">{snipCount} snip{snipCount !== 1 ? 's' : ''}</span> inside will fall back to <span className="font-semibold text-fg">{defaultName}</span> — they stay in the folder and can be reassigned.</>
+              )}
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" onClick={() => setDeletingSectionId(null)}>Cancel</Button>
+              <button
+                onClick={() => {
+                  dispatch({ type: 'DELETE_SECTION', payload: { sectionId: deletingSectionId } })
+                  setDeletingSectionId(null)
+                }}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500 hover:bg-red-600 text-white transition-colors"
+              >
+                Delete Section
+              </button>
             </div>
-          )
-        })()}
+          </Modal>
+        )
+      })()}
+
+      {/* ── Section Organizer modal ── */}
+      <Modal
+        open={sectionOrganizerOpen}
+        onClose={() => { setSectionOrganizerOpen(false); setOrgRenamingId(null); setOrgDraggingId(null); setOrgDropIndex(null); setOrgConfirmDeleteId(null) }}
+        title="Organize Sections"
+      >
+        {currentFolder && (
+          <>
+            <div className="space-y-0.5 mb-4 min-h-[40px]">
+              {orderedSectionDisplay.length === 0 ? (
+                <p className="text-xs text-muted py-2">No sections yet. Add one below.</p>
+              ) : (
+                <>
+                  {orgDropIndex === 0 && <div className="h-0.5 rounded-full bg-accent mx-1 my-1 pointer-events-none" />}
+                  {orderedSectionDisplay.map((item, index) => {
+                    const isGeneral = item.kind === 'general'
+                    const name = isGeneral ? (currentFolder.defaultSectionName ?? 'General') : item.section.name
+                    const isRenaming = orgRenamingId === item.id
+                    const isDragging = orgDraggingId === item.id
+                    const isConfirmingDelete = orgConfirmDeleteId === item.id
+                    const snipCount = isGeneral
+                      ? state.snips.filter((s) => s.folderId === currentFolder.id && (!s.sectionId || !folderSections.some((fs) => fs.id === s.sectionId))).length
+                      : state.snips.filter((s) => s.sectionId === item.id).length
+
+                    return (
+                      <div key={item.id}>
+                        <div
+                          onDragOver={(e) => {
+                            if (!e.dataTransfer.types.includes('application/org-section-id')) return
+                            e.preventDefault()
+                            e.dataTransfer.dropEffect = 'move'
+                            const rect = e.currentTarget.getBoundingClientRect()
+                            setOrgDropIndex(e.clientY < rect.top + rect.height / 2 ? index : index + 1)
+                          }}
+                          onDrop={(e) => {
+                            if (!e.dataTransfer.types.includes('application/org-section-id')) return
+                            e.preventDefault()
+                            const draggedId = e.dataTransfer.getData('application/org-section-id')
+                            handleSectionReorder(draggedId, orgDropIndex ?? orderedSectionDisplay.length)
+                            setOrgDraggingId(null)
+                            setOrgDropIndex(null)
+                          }}
+                          style={{ opacity: isDragging ? 0.4 : 1 }}
+                          className="flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-fg/5 group"
+                        >
+                          {isConfirmingDelete ? (
+                            /* ── Inline delete confirm ── */
+                            <>
+                              <span className="flex-1 text-xs text-fg">
+                                Delete <span className="font-semibold">"{name}"</span>?
+                                {snipCount > 0 && <span className="text-muted"> ({snipCount} snip{snipCount !== 1 ? 's' : ''} → General)</span>}
+                              </span>
+                              <button
+                                onClick={() => setOrgConfirmDeleteId(null)}
+                                className="px-2 py-0.5 rounded-md text-xs text-fg-2 hover:text-fg hover:bg-fg/8 transition-colors"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                onClick={() => {
+                                  dispatch({ type: 'DELETE_SECTION', payload: { sectionId: item.id } })
+                                  setOrgConfirmDeleteId(null)
+                                }}
+                                className="px-2 py-0.5 rounded-md text-xs font-semibold bg-red-500 hover:bg-red-600 text-white transition-colors"
+                              >
+                                Delete
+                              </button>
+                            </>
+                          ) : (
+                            /* ── Normal row ── */
+                            <>
+                              {/* Name + count badge */}
+                              <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                                {isRenaming ? (
+                                  <input
+                                    autoFocus
+                                    value={orgRenameValue}
+                                    onChange={(e) => setOrgRenameValue(e.target.value)}
+                                    onBlur={() => {
+                                      const trimmed = orgRenameValue.trim()
+                                      if (trimmed) {
+                                        if (isGeneral) {
+                                          dispatch({ type: 'RENAME_DEFAULT_SECTION', payload: { folderId: currentFolder.id, name: trimmed } })
+                                        } else {
+                                          dispatch({ type: 'RENAME_SECTION', payload: { sectionId: item.id, name: trimmed } })
+                                        }
+                                      }
+                                      setOrgRenamingId(null)
+                                    }}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') e.currentTarget.blur()
+                                      if (e.key === 'Escape') { setOrgRenamingId(null); e.preventDefault() }
+                                    }}
+                                    className="flex-1 text-xs font-medium text-fg bg-transparent border-0 border-b border-accent outline-none min-w-0"
+                                  />
+                                ) : (
+                                  <span className="text-xs font-medium text-fg truncate">{name}</span>
+                                )}
+                                <span className="text-[10px] text-muted bg-fg/8 rounded px-1.5 py-0.5 tabular-nums flex-shrink-0">{snipCount}</span>
+                              </div>
+
+                              {/* Actions */}
+                              <div className="flex items-center gap-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  onClick={() => { setOrgRenamingId(item.id); setOrgRenameValue(name) }}
+                                  className="p-1 rounded text-muted hover:text-fg-2 hover:bg-fg/8 transition-colors"
+                                  title="Rename section"
+                                >
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 112.828 2.828L11.828 15.828a4 4 0 01-2.828 1.172H7v-2a4 4 0 011.172-2.828z" />
+                                  </svg>
+                                </button>
+                                {!isGeneral && (
+                                  <button
+                                    onClick={() => setOrgConfirmDeleteId(item.id)}
+                                    className="p-1 rounded text-muted hover:text-red-500 hover:bg-red-500/8 transition-colors"
+                                    title="Delete section"
+                                  >
+                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4h6v3M3 7h18" />
+                                    </svg>
+                                  </button>
+                                )}
+                                {/* Drag handle — rightmost */}
+                                <span
+                                  draggable
+                                  onDragStart={(e) => {
+                                    setOrgDraggingId(item.id)
+                                    e.dataTransfer.setData('application/org-section-id', item.id)
+                                    e.dataTransfer.effectAllowed = 'move'
+                                  }}
+                                  onDragEnd={() => { setOrgDraggingId(null); setOrgDropIndex(null) }}
+                                  className="p-1 cursor-grab active:cursor-grabbing text-muted hover:text-fg-2 transition-colors"
+                                  title="Drag to reorder"
+                                >
+                                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 16 16">
+                                    <circle cx="5" cy="4" r="1.2" /><circle cx="11" cy="4" r="1.2" />
+                                    <circle cx="5" cy="8" r="1.2" /><circle cx="11" cy="8" r="1.2" />
+                                    <circle cx="5" cy="12" r="1.2" /><circle cx="11" cy="12" r="1.2" />
+                                  </svg>
+                                </span>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                        {orgDraggingId && orgDropIndex === index + 1 && (
+                          <div className="h-0.5 rounded-full bg-accent mx-1 my-1 pointer-events-none" />
+                        )}
+                      </div>
+                    )
+                  })}
+                </>
+              )}
+            </div>
+
+            {/* Add new section */}
+            <div className="border-t border-border pt-3">
+              <div className="flex gap-2">
+                <input
+                  value={newSectionInput}
+                  onChange={(e) => setNewSectionInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && newSectionInput.trim()) {
+                      dispatch({ type: 'ADD_SECTION', payload: { id: generateId(), folderId: currentFolder.id, name: newSectionInput.trim() } })
+                      setNewSectionInput('')
+                    }
+                  }}
+                  placeholder="New section name…"
+                  className="flex-1 bg-surface border border-border rounded-lg px-3 py-1.5 text-xs text-fg placeholder-muted focus:outline-none focus:border-accent transition-colors"
+                />
+                <Button
+                  onClick={() => {
+                    if (!newSectionInput.trim()) return
+                    dispatch({ type: 'ADD_SECTION', payload: { id: generateId(), folderId: currentFolder.id, name: newSectionInput.trim() } })
+                    setNewSectionInput('')
+                  }}
+                  disabled={!newSectionInput.trim()}
+                >
+                  Add
+                </Button>
+              </div>
+            </div>
+          </>
+        )}
+      </Modal>
+
+      {/* ── Bulk Move modal ── */}
+      <Modal
+        open={bulkModal === 'move'}
+        onClose={() => { setBulkModal(null); setBulkMoveStep('folder'); setBulkMoveFolderTarget(null) }}
+        title={bulkMoveStep === 'folder' ? 'Move to folder' : `Sections in "${bulkMoveFolderTarget?.name}"`}
+      >
+        {bulkMoveStep === 'folder' ? (
+          <>
+            <div className="relative mb-3">
+              <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                type="text"
+                value={bulkMoveSearch}
+                onChange={(e) => setBulkMoveSearch(e.target.value)}
+                placeholder="Search folders…"
+                autoFocus
+                className="w-full bg-surface border border-border rounded-lg pl-8 pr-3 py-1.5 text-xs text-fg placeholder-muted focus:outline-none focus:border-accent transition-colors"
+              />
+            </div>
+            {(() => {
+              const q = bulkMoveSearch.trim().toLowerCase()
+              const all = flattenFolders(state.folders)
+              const filtered = q ? all.filter(({ folder }) => folder.name.toLowerCase().includes(q)) : all
+              return filtered.length === 0 ? (
+                <p className="text-xs text-muted py-2">{state.folders.length === 0 ? 'No folders yet.' : 'No folders found.'}</p>
+              ) : (
+                <div className="max-h-52 overflow-y-auto -mx-1">
+                  {filtered.map(({ folder, depth }) => {
+                    const hasSubSections = state.sections.some((s) => s.folderId === folder.id)
+                    return (
+                      <button
+                        key={folder.id}
+                        onClick={() => {
+                          if (hasSubSections) {
+                            setBulkMoveFolderTarget({ id: folder.id, name: folder.name })
+                            setBulkMoveStep('section')
+                          } else {
+                            for (const id of selectedSnipIds) {
+                              dispatch({ type: 'MOVE_SNIP', payload: { id, folderId: folder.id } })
+                              dispatch({ type: 'SET_SNIP_SECTION', payload: { snipId: id, sectionId: null } })
+                            }
+                            exitSelectionMode()
+                          }
+                        }}
+                        style={{ paddingLeft: `${8 + depth * 12}px` }}
+                        className="w-full text-left flex items-center gap-2 pr-3 py-1.5 rounded-lg text-xs text-fg-2 hover:text-fg hover:bg-fg/5 transition-colors"
+                      >
+                        <svg className="w-3.5 h-3.5 flex-shrink-0 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
+                        </svg>
+                        <span className="flex-1 truncate">{folder.name}</span>
+                        {hasSubSections && (
+                          <svg className="w-3 h-3 flex-shrink-0 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              )
+            })()}
+          </>
+        ) : bulkMoveFolderTarget ? (
+          <>
+            <button
+              onClick={() => { setBulkMoveStep('folder'); setBulkMoveFolderTarget(null) }}
+              className="flex items-center gap-1.5 text-xs text-fg-2 hover:text-fg mb-3 transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              Back to folders
+            </button>
+            {(() => {
+              const targetSections = state.sections
+                .filter((s) => s.folderId === bulkMoveFolderTarget.id)
+                .sort((a, b) => a.order - b.order)
+              const folder = state.folders.find((f) => f.id === bulkMoveFolderTarget.id)
+              const defaultName = folder?.defaultSectionName ?? 'General'
+              const options: Array<{ id: string | null; name: string }> = [
+                { id: null, name: defaultName },
+                ...targetSections.map((s) => ({ id: s.id, name: s.name })),
+              ]
+              return (
+                <div className="max-h-52 overflow-y-auto -mx-1">
+                  {options.map((opt) => (
+                    <button
+                      key={opt.id ?? '__general__'}
+                      onClick={() => {
+                        for (const id of selectedSnipIds) {
+                          dispatch({ type: 'MOVE_SNIP', payload: { id, folderId: bulkMoveFolderTarget.id } })
+                          dispatch({ type: 'SET_SNIP_SECTION', payload: { snipId: id, sectionId: opt.id } })
+                        }
+                        exitSelectionMode()
+                      }}
+                      className="w-full text-left flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-fg-2 hover:text-fg hover:bg-fg/5 transition-colors"
+                    >
+                      <svg className="w-3.5 h-3.5 flex-shrink-0 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
+                      </svg>
+                      <span className="truncate">{opt.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )
+            })()}
+          </>
+        ) : null}
       </Modal>
 
       {/* ── Bulk Tag modal ── */}
@@ -989,23 +1797,54 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
       {/* ── Bulk drop confirmation ── */}
       <Modal
         open={pendingBulkDrop !== null}
-        onClose={() => setPendingBulkDrop(null)}
+        onClose={() => { setPendingBulkDrop(null); setPendingMoveSection(null) }}
         title={
-          pendingBulkDrop?.type === 'move'  ? 'Move snips?' :
-          pendingBulkDrop?.type === 'tag'   ? 'Assign tag?' :
+          pendingBulkDrop?.type === 'move'    ? 'Move snips?' :
+          pendingBulkDrop?.type === 'tag'     ? 'Assign tag?' :
+          pendingBulkDrop?.type === 'section' ? 'Move to section?' :
           'Move to Trash?'
         }
       >
         {pendingBulkDrop?.type === 'move' && (
-          <p className="text-xs text-muted mb-5">
-            Move <span className="font-semibold text-fg">{pendingBulkDrop.snipIds.length} snip{pendingBulkDrop.snipIds.length !== 1 ? 's' : ''}</span> to <span className="font-semibold text-fg">"{pendingBulkDrop.folderName}"</span>?
-          </p>
+          <>
+            <p className="text-xs text-muted mb-3">
+              Move <span className="font-semibold text-fg">{pendingBulkDrop.snipIds.length} snip{pendingBulkDrop.snipIds.length !== 1 ? 's' : ''}</span> to <span className="font-semibold text-fg">"{pendingBulkDrop.folderName}"</span>?
+            </p>
+            {(() => {
+              const dropSections = state.sections
+                .filter((s) => s.folderId === pendingBulkDrop.folderId)
+                .sort((a, b) => a.order - b.order)
+              if (dropSections.length === 0) return null
+              const folder = state.folders.find((f) => f.id === pendingBulkDrop.folderId)
+              const defaultName = folder?.defaultSectionName ?? 'General'
+              return (
+                <div className="mb-4">
+                  <label className="block text-[10px] font-semibold tracking-wide uppercase text-muted mb-1.5">Section</label>
+                  <select
+                    value={pendingMoveSection ?? ''}
+                    onChange={(e) => setPendingMoveSection(e.target.value || null)}
+                    className="w-full bg-surface border border-border rounded-lg px-2.5 py-1.5 text-xs text-fg focus:outline-none focus:border-accent transition-colors"
+                  >
+                    <option value="">{defaultName}</option>
+                    {dropSections.map((s) => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )
+            })()}
+          </>
         )}
         {pendingBulkDrop?.type === 'tag' && (
           <div className="flex items-center gap-2 mb-5 text-xs text-muted">
             <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: pendingBulkDrop.tagColor }} />
             Add tag <span className="font-semibold text-fg">"{pendingBulkDrop.tagName}"</span> to <span className="font-semibold text-fg">{pendingBulkDrop.snipIds.length} snip{pendingBulkDrop.snipIds.length !== 1 ? 's' : ''}</span>?
           </div>
+        )}
+        {pendingBulkDrop?.type === 'section' && (
+          <p className="text-xs text-muted mb-5">
+            Move <span className="font-semibold text-fg">{pendingBulkDrop.snipIds.length} snip{pendingBulkDrop.snipIds.length !== 1 ? 's' : ''}</span> to section <span className="font-semibold text-fg">"{pendingBulkDrop.sectionName}"</span>?
+          </p>
         )}
         {pendingBulkDrop?.type === 'trash' && (
           <p className="text-xs text-muted mb-5">
@@ -1028,8 +1867,11 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
             <Button onClick={() => {
               if (!pendingBulkDrop) return
               if (pendingBulkDrop.type === 'move') {
-                for (const id of pendingBulkDrop.snipIds)
+                const hasSections = state.sections.some((s) => s.folderId === pendingBulkDrop.folderId)
+                for (const id of pendingBulkDrop.snipIds) {
                   dispatch({ type: 'MOVE_SNIP', payload: { id, folderId: pendingBulkDrop.folderId } })
+                  if (hasSections) dispatch({ type: 'SET_SNIP_SECTION', payload: { snipId: id, sectionId: pendingMoveSection } })
+                }
               } else if (pendingBulkDrop.type === 'tag') {
                 for (const snipId of pendingBulkDrop.snipIds) {
                   const snip = state.snips.find((s) => s.id === snipId)
@@ -1037,10 +1879,13 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
                   const next = [...new Set([...(snip.tagIds ?? []), pendingBulkDrop.tagId])]
                   dispatch({ type: 'SET_SNIP_TAGS', payload: { snipId, tagIds: next } })
                 }
+              } else if (pendingBulkDrop.type === 'section') {
+                for (const snipId of pendingBulkDrop.snipIds)
+                  dispatch({ type: 'SET_SNIP_SECTION', payload: { snipId, sectionId: pendingBulkDrop.sectionId } })
               }
               exitSelectionMode()
             }}>
-              {pendingBulkDrop?.type === 'move' ? 'Move' : 'Add Tag'}
+              {pendingBulkDrop?.type === 'move' ? 'Move' : pendingBulkDrop?.type === 'section' ? 'Move' : 'Add Tag'}
             </Button>
           )}
         </div>
