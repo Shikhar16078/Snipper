@@ -16,7 +16,7 @@ export const TIP_CATEGORIES: TipCategory[] = [
       'Toggle between grid and list view with the view buttons in the toolbar.',
       'Click the expand icon in the toolbar to reveal all card content at once.',
       'Open Settings from the gear icon in the toolbar to change themes, configure trash, and toggle preferences.',
-      'All snips that don\'t belong to any folder appear when you click "All Snips" in the sidebar.',
+      'Click "All Snips" in the sidebar for a global view of every snip across all folders and sections.',
       'The snip count badge next to each folder shows how many snips are directly inside it.',
       'Hover the "All Snips" label in the sidebar to rename it to anything you like.',
       'Use the star button in the toolbar to filter and see only your starred snips.',
@@ -89,6 +89,7 @@ export const TIP_CATEGORIES: TipCategory[] = [
       'Deleting a section moves all its snips into the General area — no snips are lost.',
       'Sections only appear when a specific folder is selected — All Snips and tag views are always flat.',
       'Drag multiple selected snips onto a section header to reassign them all at once.',
+      'Moving a snip to a different folder removes its section assignment — it arrives in the General area of the new folder.',
     ],
   },
   {
@@ -152,6 +153,22 @@ export const TIP_CATEGORIES: TipCategory[] = [
     ],
   },
   {
+    title: 'Import & Export',
+    description: 'Back up your library and move snips between devices or instances.',
+    tips: [
+      'Export your snips from Settings → Export Snips — choose individual snips or export everything at once.',
+      'Exports are complete snapshots: folder structure, sections, tags, and starred status are all preserved.',
+      'Import a Snipper export file from Settings → Import Snips — drag the file onto the drop zone or click to browse.',
+      'Import is always append-only — your existing snips are never overwritten or removed.',
+      'Identical duplicates are detected automatically and skipped — only new snips are added.',
+      'During import, missing folders, sections, and tags are created automatically so nothing is left behind.',
+      'Before anything changes, a preview shows exactly which snips will be added and which will be skipped.',
+      'Only .json files exported from Snipper can be imported — dropping an incompatible file shows a clear error message.',
+      'When exporting, the folder tree shows which section each snip belongs to — deselect any snips you don\'t need.',
+      'Use Export as a backup before making large reorganizations — you can always import back what you need.',
+    ],
+  },
+  {
     title: 'Trash & Recovery',
     description: 'Recover deleted snips and folders, or clean up for good.',
     tips: [
@@ -163,7 +180,7 @@ export const TIP_CATEGORIES: TipCategory[] = [
       'Set Trash to auto-empty in Settings — choose 1 hour, 7 days, or a fully custom duration.',
       'Auto-purge supports custom durations — set anything from 10 minutes to several weeks.',
       'Trashed folder cards show a preview of the snips and subfolders that were inside them.',
-      'Restoring a folder recovers its entire nested structure — subfolders, sections, and snips — exactly as it was.',
+      'Restoring a folder recovers its entire nested structure — all subfolders and snips — exactly as they were.',
       'Deleting a folder moves its whole subtree — all subfolders and snips — to a single Trash entry.',
       'Drag a snip card directly onto the Trash icon in the sidebar to delete without a confirmation dialog.',
       'Use Cmd+F or Ctrl+F inside Trash to search through deleted items by name or content.',
