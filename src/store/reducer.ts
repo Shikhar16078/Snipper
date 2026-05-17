@@ -1,4 +1,4 @@
-import type { AppState, Folder, TrashedFolder, TrashedSnip } from '../types'
+import type { AppState, Folder, Section, Tag, TrashedFolder, TrashedSection, TrashedSnip } from '../types'
 import type { Action } from './actions'
 import { generateId } from '../utils/id'
 
@@ -57,6 +57,7 @@ export function reducer(state: AppState, action: Action): AppState {
         folders: state.folders.filter((f) => !toDelete.includes(f.id)),
         snips: state.snips.filter((s) => !toDelete.includes(s.folderId)),
         dividers: state.dividers.filter((d) => d.afterFolderId === null || !toDelete.includes(d.afterFolderId)),
+        sections: state.sections.filter((s) => !toDelete.includes(s.folderId)),
         trash: [trashedEntry, ...state.trash],
         selectedFolderId: toDelete.includes(state.selectedFolderId ?? '')
           ? null
@@ -108,7 +109,53 @@ export function reducer(state: AppState, action: Action): AppState {
     }
 
     case 'SELECT_FOLDER':
-      return { ...state, selectedFolderId: action.payload.id }
+      return { ...state, selectedFolderId: action.payload.id, selectedTagId: null }
+
+    case 'ADD_TAG': {
+      const tag: Tag = { id: action.payload.id ?? generateId(), name: action.payload.name, color: action.payload.color }
+      return { ...state, tags: [...state.tags, tag] }
+    }
+
+    case 'EDIT_TAG':
+      return {
+        ...state,
+        tags: state.tags.map((t) => t.id === action.payload.id ? { ...t, name: action.payload.name, color: action.payload.color } : t),
+      }
+
+    case 'DELETE_TAG': {
+      const id = action.payload.id
+      return {
+        ...state,
+        tags: state.tags.filter((t) => t.id !== id),
+        snips: state.snips.map((s) => ({ ...s, tagIds: s.tagIds?.filter((tid) => tid !== id) })),
+        selectedTagId: state.selectedTagId === id ? null : state.selectedTagId,
+      }
+    }
+
+    case 'SELECT_TAG':
+      return { ...state, selectedTagId: action.payload.id, selectedFolderId: null }
+
+    case 'SET_SNIP_TAGS':
+      return {
+        ...state,
+        snips: state.snips.map((s) => s.id === action.payload.snipId ? { ...s, tagIds: action.payload.tagIds } : s),
+      }
+
+    case 'REORDER_TAG': {
+      const { sourceId, afterId } = action.payload
+      if (sourceId === afterId) return state
+      const tags = [...state.tags]
+      const sourceIdx = tags.findIndex(t => t.id === sourceId)
+      if (sourceIdx === -1) return state
+      const [moved] = tags.splice(sourceIdx, 1)
+      if (afterId === null) {
+        tags.unshift(moved)
+      } else {
+        const afterIdx = tags.findIndex(t => t.id === afterId)
+        tags.splice(afterIdx + 1, 0, moved)
+      }
+      return { ...state, tags }
+    }
 
     case 'ADD_SNIP':
       return {
@@ -118,9 +165,11 @@ export function reducer(state: AppState, action: Action): AppState {
           {
             id: action.payload.id ?? generateId(),
             folderId: action.payload.folderId,
+            sectionId: action.payload.sectionId ?? null,
             name: action.payload.name,
             body: action.payload.body,
             linkTitles: sanitizeLinkTitles(action.payload.linkTitles),
+            tagIds: action.payload.tagIds,
             createdAt: Date.now(),
             updatedAt: Date.now(),
           },
@@ -137,7 +186,9 @@ export function reducer(state: AppState, action: Action): AppState {
                 name: action.payload.name,
                 body: action.payload.body,
                 folderId: action.payload.folderId,
+                sectionId: action.payload.sectionId !== undefined ? action.payload.sectionId : s.sectionId,
                 linkTitles: sanitizeLinkTitles(action.payload.linkTitles),
+                ...(action.payload.tagIds !== undefined ? { tagIds: action.payload.tagIds } : {}),
                 updatedAt: Date.now(),
               }
             : s,
@@ -160,7 +211,7 @@ export function reducer(state: AppState, action: Action): AppState {
         ...state,
         snips: state.snips.map((s) =>
           s.id === action.payload.id
-            ? { ...s, folderId: action.payload.folderId, updatedAt: Date.now() }
+            ? { ...s, folderId: action.payload.folderId, sectionId: null, updatedAt: Date.now() }
             : s,
         ),
       }
@@ -189,11 +240,66 @@ export function reducer(state: AppState, action: Action): AppState {
     case 'SET_AUTO_UPDATE_ENABLED':
       return { ...state, autoUpdateEnabled: action.payload }
 
+    case 'SET_SNIP_SORT':
+      return { ...state, snipSort: action.payload }
+
+    case 'SET_TOOLBAR_POSITION':
+      return { ...state, toolbarPosition: action.payload }
+
+    case 'TOGGLE_PIN_SNIP':
+      return {
+        ...state,
+        snips: state.snips.map((s) =>
+          s.id === action.payload.id ? { ...s, pinned: !s.pinned } : s,
+        ),
+      }
+
+    case 'DUPLICATE_SNIP': {
+      const src = state.snips.find((s) => s.id === action.payload.id)
+      if (!src) return state
+      const now = Date.now()
+      return {
+        ...state,
+        snips: [
+          ...state.snips,
+          {
+            ...src,
+            id: generateId(),
+            name: `${src.name} (copy)`,
+            pinned: false,
+            copyCount: undefined,
+            lastCopiedAt: undefined,
+            createdAt: now,
+            updatedAt: now,
+          },
+        ],
+      }
+    }
+
+    case 'RECORD_COPY':
+      return {
+        ...state,
+        snips: state.snips.map((s) =>
+          s.id === action.payload.id
+            ? { ...s, copyCount: (s.copyCount ?? 0) + 1, lastCopiedAt: Date.now() }
+            : s,
+        ),
+      }
+
     case 'PURGE_EXPIRED_TRASH': {
       if (state.trashAutoPurge === null) return state
       const cutoff = Date.now() - state.trashAutoPurge
       return { ...state, trash: state.trash.filter((t) => t.deletedAt > cutoff) }
     }
+
+    case 'IMPORT_DATA':
+      return {
+        ...state,
+        folders:  [...state.folders,  ...action.payload.folders],
+        snips:    [...state.snips,    ...action.payload.snips],
+        sections: [...state.sections, ...action.payload.sections],
+        tags:     [...state.tags,     ...action.payload.tags],
+      }
 
     case 'TOGGLE_EDIT_MODE':
       return { ...state, isEditMode: !state.isEditMode }
@@ -214,6 +320,14 @@ export function reducer(state: AppState, action: Action): AppState {
       if (item.type === 'snip') {
         return { ...state, snips: [...state.snips, item.snip], trash: remaining }
       }
+      if (item.type === 'section') {
+        return {
+          ...state,
+          sections: [...state.sections, item.section],
+          snips: state.snips.map((s) => item.snipIds.includes(s.id) ? { ...s, sectionId: item.section.id } : s),
+          trash: remaining,
+        }
+      }
       return {
         ...state,
         folders: [...state.folders, ...item.folders],
@@ -227,16 +341,20 @@ export function reducer(state: AppState, action: Action): AppState {
       let folders = [...state.folders]
       let snips = [...state.snips]
       let dividers = [...state.dividers]
+      let sections = [...state.sections]
       for (const item of state.trash) {
         if (item.type === 'snip') {
           snips = [...snips, item.snip]
+        } else if (item.type === 'section') {
+          sections = [...sections, item.section]
+          snips = snips.map((s) => item.snipIds.includes(s.id) ? { ...s, sectionId: item.section.id } : s)
         } else {
           folders = [...folders, ...item.folders]
           snips = [...snips, ...item.snips]
           dividers = [...dividers, ...item.dividers]
         }
       }
-      return { ...state, folders, snips, dividers, trash: [] }
+      return { ...state, folders, snips, dividers, sections, trash: [] }
     }
 
     case 'PERMANENTLY_DELETE_TRASH_ITEM':
@@ -244,6 +362,103 @@ export function reducer(state: AppState, action: Action): AppState {
 
     case 'EMPTY_TRASH':
       return { ...state, trash: [] }
+
+    case 'ADD_SECTION': {
+      const folderSections = state.sections.filter((s) => s.folderId === action.payload.folderId)
+      const maxOrder = folderSections.length > 0 ? Math.max(...folderSections.map((s) => s.order)) : -1
+      const section: Section = {
+        id: action.payload.id ?? generateId(),
+        name: action.payload.name,
+        folderId: action.payload.folderId,
+        order: maxOrder + 1,
+        createdAt: Date.now(),
+      }
+      return { ...state, sections: [...state.sections, section] }
+    }
+
+    case 'RENAME_SECTION':
+      return {
+        ...state,
+        sections: state.sections.map((s) =>
+          s.id === action.payload.sectionId ? { ...s, name: action.payload.name } : s,
+        ),
+      }
+
+    case 'DELETE_SECTION': {
+      const section = state.sections.find((s) => s.id === action.payload.sectionId)
+      if (!section) return state
+      const snipIds = state.snips.filter((s) => s.sectionId === action.payload.sectionId).map((s) => s.id)
+      const trashedEntry: TrashedSection = { id: section.id, type: 'section', deletedAt: Date.now(), section, snipIds }
+      return {
+        ...state,
+        sections: state.sections.filter((s) => s.id !== action.payload.sectionId),
+        snips: state.snips.map((s) =>
+          s.sectionId === action.payload.sectionId ? { ...s, sectionId: null } : s,
+        ),
+        trash: [trashedEntry, ...state.trash],
+      }
+    }
+
+    case 'REORDER_SECTION': {
+      const { sourceId, afterId, folderId } = action.payload
+      if (sourceId === afterId) return state
+      const folderSections = state.sections.filter((s) => s.folderId === folderId)
+      const sourceIdx = folderSections.findIndex((s) => s.id === sourceId)
+      if (sourceIdx === -1) return state
+      const [moved] = folderSections.splice(sourceIdx, 1)
+      if (afterId === null) {
+        folderSections.unshift(moved)
+      } else {
+        const afterIdx = folderSections.findIndex((s) => s.id === afterId)
+        folderSections.splice(afterIdx + 1, 0, moved)
+      }
+      const reordered = folderSections.map((s, i) => ({ ...s, order: i }))
+      return {
+        ...state,
+        sections: [
+          ...state.sections.filter((s) => s.folderId !== folderId),
+          ...reordered,
+        ],
+      }
+    }
+
+    case 'SET_SNIP_SECTION':
+      return {
+        ...state,
+        snips: state.snips.map((s) =>
+          s.id === action.payload.snipId ? { ...s, sectionId: action.payload.sectionId } : s,
+        ),
+      }
+
+    case 'RENAME_DEFAULT_SECTION':
+      return {
+        ...state,
+        folders: state.folders.map((f) =>
+          f.id === action.payload.folderId
+            ? { ...f, defaultSectionName: action.payload.name }
+            : f,
+        ),
+      }
+
+
+    case 'IMPORT_SECTIONS':
+      return { ...state, sections: [...state.sections, ...action.payload.sections] }
+
+    case 'REORDER_SECTIONS_IN_FOLDER': {
+      const { folderId, orderedIds } = action.payload
+      const generalIdx = orderedIds.indexOf('__general__')
+      return {
+        ...state,
+        sections: state.sections.map((s) => {
+          if (s.folderId !== folderId) return s
+          const idx = orderedIds.indexOf(s.id)
+          return idx === -1 ? s : { ...s, order: idx }
+        }),
+        folders: state.folders.map((f) =>
+          f.id === folderId ? { ...f, defaultSectionOrder: generalIdx } : f
+        ),
+      }
+    }
 
     default:
       return state

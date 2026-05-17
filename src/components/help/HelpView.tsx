@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import { TIP_CATEGORIES } from '../snips/TipsFooter'
 import { Settings } from '../ui/Settings'
 
@@ -15,9 +15,26 @@ const CATEGORY_ICONS: JSX.Element[] = [
   <svg key="folders" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
   </svg>,
+  // Sections — horizontal rows with divider
+  <svg key="sections" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 12h16" />
+  </svg>,
+  // Tags — price tag
+  <svg key="tags" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M7 7h.01M7 3h5a1.99 1.99 0 011.414.586l7 7a2 2 0 010 2.828l-5 5a2 2 0 01-2.828 0l-7-7A2 2 0 013 9.828V5a2 2 0 012-2z" />
+  </svg>,
+  // Multi-Select — check square
+  <svg key="multiselect" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+  </svg>,
   // Search & Navigation — magnifying glass
   <svg key="search" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+  </svg>,
+  // Import & Export — upload/download arrows
+  <svg key="importexport" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
   </svg>,
   // Trash & Recovery — trash can
   <svg key="trash" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -25,19 +42,43 @@ const CATEGORY_ICONS: JSX.Element[] = [
   </svg>,
 ]
 
+const HELP_SIDEBAR_MIN = 200
+const HELP_SIDEBAR_MAX = 320
+const HELP_SIDEBAR_DEFAULT = 200
+
 interface HelpViewProps {
-  collapsed: boolean
-  onToggleSidebar: () => void
   onOpenHelp: () => void
   onGoHome: () => void
+  onOpenImport?: () => void
+  onOpenExport?: () => void
 }
 
-export function HelpView({ collapsed, onToggleSidebar, onOpenHelp, onGoHome }: HelpViewProps) {
+export function HelpView({ onOpenHelp, onGoHome, onOpenImport, onOpenExport }: HelpViewProps) {
   const [selected, setSelected] = useState(0)
   const [navDirection, setNavDirection] = useState<'forward' | 'backward'>('forward')
   const [query, setQuery] = useState('')
+  const [helpSidebarWidth, setHelpSidebarWidth] = useState(HELP_SIDEBAR_DEFAULT)
   const searchRef = useRef<HTMLInputElement>(null)
+  const isResizing = useRef(false)
   const isMac = (window as any).api?.platform === 'darwin'
+
+  const startResize = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    isResizing.current = true
+    const startX = e.clientX
+    const startW = helpSidebarWidth
+    function onMove(ev: MouseEvent) {
+      if (!isResizing.current) return
+      setHelpSidebarWidth(Math.max(HELP_SIDEBAR_MIN, Math.min(HELP_SIDEBAR_MAX, startW + ev.clientX - startX)))
+    }
+    function onUp() {
+      isResizing.current = false
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }, [helpSidebarWidth])
   const cat = TIP_CATEGORIES[selected]
   const total = TIP_CATEGORIES.length
   const prevIndex = (selected - 1 + total) % total
@@ -62,21 +103,9 @@ export function HelpView({ collapsed, onToggleSidebar, onOpenHelp, onGoHome }: H
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-surface">
 
       {/* Navbar */}
-      <div className={`flex items-center gap-2 pr-4 border-b border-border flex-shrink-0 transition-[padding] duration-200 ${
-        isMac ? `drag-region select-none h-[40px] ${collapsed ? 'pl-[80px]' : 'pl-4'}` : 'py-2.5 pl-4'
+      <div className={`flex items-center gap-2 pr-4 border-b border-border flex-shrink-0 ${
+        isMac ? 'drag-region select-none h-[40px] pl-[80px]' : 'py-2.5 pl-4'
       }`}>
-        {collapsed && (
-          <button
-            onClick={onToggleSidebar}
-            className="p-1 -ml-1 rounded-md text-muted hover:text-fg hover:bg-fg/8 transition-colors app-no-drag"
-            title="Expand sidebar"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <rect width="18" height="18" x="3" y="3" rx="2" ry="2" strokeWidth={1.5} />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 3v18" />
-            </svg>
-          </button>
-        )}
 
         {/* Back button */}
         <button
@@ -124,7 +153,7 @@ export function HelpView({ collapsed, onToggleSidebar, onOpenHelp, onGoHome }: H
           </div>
         </div>
 
-        <Settings onOpenHelp={onOpenHelp} isOnHelp={true} />
+        <Settings onOpenHelp={onOpenHelp} isOnHelp={true} onOpenImport={onOpenImport} onOpenExport={onOpenExport} />
       </div>
 
       {/* Body */}
@@ -132,118 +161,140 @@ export function HelpView({ collapsed, onToggleSidebar, onOpenHelp, onGoHome }: H
 
         {/* Category sidebar — hidden while searching */}
         {!trimmed && (
-          <div className="w-48 flex-shrink-0 border-r border-border overflow-y-auto py-3">
-            {TIP_CATEGORIES.map((c, i) => (
-              <button
-                key={c.title}
-                onClick={() => navigateTo(i)}
-                className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-left transition-colors ${
-                  selected === i
-                    ? 'text-accent bg-accent/8 font-semibold border-r-2 border-accent'
-                    : 'text-fg-2 hover:text-fg hover:bg-fg/5'
-                }`}
-              >
-                <span className={selected === i ? 'text-accent' : 'text-muted'}>
-                  {CATEGORY_ICONS[i]}
-                </span>
-                <div className="min-w-0">
-                  <p className="text-xs truncate">{c.title}</p>
-                  <p className="text-[10px] text-muted font-normal mt-0.5">{c.tips.length} tips</p>
-                </div>
-              </button>
-            ))}
-          </div>
+          <>
+            <div
+              className="flex-shrink-0 overflow-y-auto py-3"
+              style={{ width: helpSidebarWidth, transition: isResizing.current ? 'none' : undefined }}
+            >
+              {TIP_CATEGORIES.map((c, i) => (
+                <button
+                  key={c.title}
+                  onClick={() => navigateTo(i)}
+                  className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-left transition-colors ${
+                    selected === i
+                      ? 'text-accent bg-accent/8 font-semibold border-l-2 border-accent pl-[14px]'
+                      : 'text-fg-2 hover:text-fg hover:bg-fg/5'
+                  }`}
+                >
+                  <span className={selected === i ? 'text-accent' : 'text-muted'}>
+                    {CATEGORY_ICONS[i]}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-xs truncate">{c.title}</p>
+                    <p className="text-[10px] text-muted font-normal mt-0.5">{c.tips.length} tips</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            {/* Resize handle */}
+            <div
+              className="flex-shrink-0 relative group z-10"
+              style={{ width: 4 }}
+              onMouseDown={startResize}
+            >
+              <div className="absolute inset-0 bg-border group-hover:bg-accent/40 transition-colors cursor-ew-resize" />
+            </div>
+          </>
         )}
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 flex flex-col overflow-hidden">
           {trimmed ? (
-            /* Search results */
-            <div className="max-w-2xl mx-auto px-10 py-8">
-              <p className="text-xs text-muted mb-4">
-                {searchResults.length === 0
-                  ? 'No tips match your search.'
-                  : `${searchResults.length} result${searchResults.length !== 1 ? 's' : ''}`}
-              </p>
-              <div className="space-y-2">
-                {searchResults.map(({ tip, categoryTitle, ci, ti }) => (
-                  <div
-                    key={`${ci}-${ti}`}
-                    className="group flex items-start gap-3 p-3.5 rounded-xl border border-border bg-panel hover:border-accent/25 hover:bg-accent/5 hover:shadow-sm transition-all"
-                  >
-                    <svg className="w-3.5 h-3.5 text-accent flex-shrink-0 mt-0.5 transition-all group-hover:drop-shadow-[0_0_5px_rgba(var(--accent),0.7)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                        d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
-                      />
-                    </svg>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs text-fg-2 leading-relaxed group-hover:text-fg transition-colors">{tip}</p>
-                      <span className="inline-block mt-1.5 text-[10px] text-muted bg-fg/5 rounded-md px-1.5 py-0.5">{categoryTitle}</span>
+            /* Search results — full area scrolls, no fixed footer */
+            <div className="flex-1 overflow-y-auto">
+              <div className="max-w-2xl mx-auto px-10 py-8">
+                <p className="text-xs text-muted mb-4">
+                  {searchResults.length === 0
+                    ? 'No tips match your search.'
+                    : `${searchResults.length} result${searchResults.length !== 1 ? 's' : ''}`}
+                </p>
+                <div className="space-y-2">
+                  {searchResults.map(({ tip, categoryTitle, ci, ti }) => (
+                    <div
+                      key={`${ci}-${ti}`}
+                      className="group flex items-start gap-3 p-3.5 rounded-xl border border-border bg-panel hover:border-accent/25 hover:bg-accent/5 hover:shadow-sm transition-all"
+                    >
+                      <svg className="w-3.5 h-3.5 text-accent flex-shrink-0 mt-0.5 transition-all group-hover:drop-shadow-[0_0_5px_rgba(var(--accent),0.7)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                          d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
+                        />
+                      </svg>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs text-fg-2 leading-relaxed group-hover:text-fg transition-colors">{tip}</p>
+                        <span className="inline-block mt-1.5 text-[10px] text-muted bg-fg/5 rounded-md px-1.5 py-0.5">{categoryTitle}</span>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             </div>
           ) : (
-            /* Normal category view */
-            <div key={selected} className="max-w-2xl mx-auto px-10 py-8 min-h-full flex flex-col">
+            /* Normal category view — header + footer fixed, only tips scroll */
+            <div key={selected} className="flex-1 flex flex-col overflow-hidden">
+              <div className="max-w-2xl w-full mx-auto px-10 flex flex-col flex-1 overflow-hidden">
 
-              {/* Section header */}
-              <div className="help-content-stagger flex items-center gap-3 mb-1" style={{ animationDelay: '40ms' }}>
-                <span className="text-accent">{CATEGORY_ICONS[selected]}</span>
-                <h1 className="text-base font-bold text-fg">{cat.title}</h1>
-              </div>
-              <p className="help-content-stagger text-xs text-muted mb-6 pl-7" style={{ animationDelay: '100ms' }}>
-                {cat.description}
-              </p>
-
-              {/* Tips */}
-              <div className="space-y-2">
-                {cat.tips.map((tip, i) => (
-                  <div
-                    key={i}
-                    className="help-content-stagger group flex items-start gap-3 p-3.5 rounded-xl border border-border bg-panel hover:border-accent/25 hover:bg-accent/5 hover:shadow-sm transition-all"
-                    style={{ animationDelay: `${170 + i * 55}ms` }}
-                  >
-                    <svg className="w-3.5 h-3.5 text-accent flex-shrink-0 mt-0.5 transition-all group-hover:drop-shadow-[0_0_5px_rgba(var(--accent),0.7)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                        d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
-                      />
-                    </svg>
-                    <p className="text-xs text-fg-2 leading-relaxed group-hover:text-fg transition-colors">{tip}</p>
+                {/* Section header — fixed */}
+                <div className="pt-8 flex-shrink-0">
+                  <div className="help-content-stagger flex items-center gap-3 mb-1" style={{ animationDelay: '40ms' }}>
+                    <span className="text-accent">{CATEGORY_ICONS[selected]}</span>
+                    <h1 className="text-base font-bold text-fg">{cat.title}</h1>
                   </div>
-                ))}
-              </div>
+                  <p className="help-content-stagger text-xs text-muted mb-6 pl-7" style={{ animationDelay: '100ms' }}>
+                    {cat.description}
+                  </p>
+                </div>
 
-              {/* Footer nav */}
-              <div className="flex items-center justify-between mt-auto pt-6 border-t border-border">
-                <button
-                  onClick={() => navigateTo(prevIndex, 'backward')}
-                  className={`help-footer-nav help-footer-nav-prev flex items-center gap-1.5 text-xs text-muted hover:text-fg transition-colors ${
-                    navDirection === 'backward' ? 'help-footer-nav-active' : ''
-                  }`}
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                  </svg>
-                  {TIP_CATEGORIES[prevIndex].title}
-                </button>
-                <span className="help-footer-index text-[10px] text-muted tabular-nums">
-                  {selected + 1} / {TIP_CATEGORIES.length}
-                </span>
-                <button
-                  onClick={() => navigateTo(nextIndex, 'forward')}
-                  className={`help-footer-nav help-footer-nav-next flex items-center gap-1.5 text-xs text-muted hover:text-fg transition-colors ${
-                    navDirection === 'forward' ? 'help-footer-nav-active' : ''
-                  }`}
-                >
-                  {TIP_CATEGORIES[nextIndex].title}
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </button>
-              </div>
+                {/* Tips — scrollable */}
+                <div className="flex-1 overflow-y-auto min-h-0 pr-2" style={{ willChange: 'scroll-position' }}>
+                  <div className="space-y-2 pb-4">
+                    {cat.tips.map((tip, i) => (
+                      <div
+                        key={i}
+                        className="help-content-stagger group flex items-start gap-3 p-3.5 rounded-xl border border-border bg-panel hover:border-accent/25 hover:bg-accent/5 hover:shadow-sm transition-all"
+                        style={{ animationDelay: `${170 + i * 55}ms` }}
+                      >
+                        <svg className="w-3.5 h-3.5 text-accent flex-shrink-0 mt-0.5 transition-all group-hover:drop-shadow-[0_0_5px_rgba(var(--accent),0.7)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                            d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
+                          />
+                        </svg>
+                        <p className="text-xs text-fg-2 leading-relaxed group-hover:text-fg transition-colors">{tip}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
 
+                {/* Footer nav — fixed */}
+                <div className="flex items-center justify-between py-4 border-t border-border flex-shrink-0">
+                  <button
+                    onClick={() => navigateTo(prevIndex, 'backward')}
+                    className={`help-footer-nav help-footer-nav-prev flex items-center gap-1.5 text-xs text-muted hover:text-fg transition-colors ${
+                      navDirection === 'backward' ? 'help-footer-nav-active' : ''
+                    }`}
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                    {TIP_CATEGORIES[prevIndex].title}
+                  </button>
+                  <span className="help-footer-index text-[10px] text-muted tabular-nums">
+                    {selected + 1} / {TIP_CATEGORIES.length}
+                  </span>
+                  <button
+                    onClick={() => navigateTo(nextIndex, 'forward')}
+                    className={`help-footer-nav help-footer-nav-next flex items-center gap-1.5 text-xs text-muted hover:text-fg transition-colors ${
+                      navDirection === 'forward' ? 'help-footer-nav-active' : ''
+                    }`}
+                  >
+                    {TIP_CATEGORIES[nextIndex].title}
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                </div>
+
+              </div>
             </div>
           )}
         </div>

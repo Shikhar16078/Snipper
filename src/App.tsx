@@ -8,6 +8,8 @@ import { SnipGrid } from './components/snips/SnipGrid'
 import { SnipEditorView, type SnipEditorHandle } from './components/snips/SnipEditorView'
 import { TrashView } from './components/trash/TrashView'
 import { HelpView } from './components/help/HelpView'
+import { ExportView } from './components/data/ExportView'
+import { ImportView } from './components/data/ImportView'
 
 type PendingNav = { type: 'folder'; id: string | null } | { type: 'trash' }
 type UpdateCardState =
@@ -29,6 +31,8 @@ function AppShell() {
   const [collapsed, setCollapsed] = useState(false)
   const [trashOpen, setTrashOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
+  const [exportOpen, setExportOpen] = useState(false)
   const [pendingNav, setPendingNav] = useState<PendingNav | null>(null)
   const [updateCard, setUpdateCard] = useState<UpdateCardState>({ phase: 'idle' })
   const [updateDismissed, setUpdateDismissed] = useState(false)
@@ -36,6 +40,20 @@ function AppShell() {
   const widthBeforeCollapse = useRef(SIDEBAR_DEFAULT)
   const isResizing = useRef(false)
   const autoCheckingRef = useRef(false)
+
+  // Auto-hide scrollbars: add .is-scrolling on scroll, remove after 1s idle
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>
+    function onScroll(e: Event) {
+      const el = e.target as HTMLElement
+      if (!el?.classList) return
+      el.classList.add('is-scrolling')
+      clearTimeout(timer)
+      timer = setTimeout(() => el.classList.remove('is-scrolling'), 1000)
+    }
+    document.addEventListener('scroll', onScroll, true)
+    return () => { document.removeEventListener('scroll', onScroll, true); clearTimeout(timer) }
+  }, [])
 
   // Apply theme classes to <html>
   useEffect(() => {
@@ -211,10 +229,12 @@ function AppShell() {
     }
   }
 
-  // Close trash and help whenever the user navigates to a folder
+  // Close trash, help, import, export whenever the user navigates to a folder
   useEffect(() => {
     setTrashOpen(false)
     setHelpOpen(false)
+    setImportOpen(false)
+    setExportOpen(false)
   }, [state.selectedFolderId])
 
   const isEditorOpen = createOpen || editTarget !== null
@@ -265,10 +285,13 @@ function AppShell() {
     setEditTarget(snip)
   }
 
-  function openCreateEditor() {
+  const [createSectionId, setCreateSectionId] = useState<string | null>(null)
+
+  function openCreateEditor(sectionId?: string | null) {
     setTrashOpen(false)
     setHelpOpen(false)
     setEditTarget(null)
+    setCreateSectionId(sectionId ?? null)
     setCreateOpen(true)
   }
 
@@ -278,7 +301,7 @@ function AppShell() {
       <div
         className="flex-shrink-0 overflow-hidden"
         style={{
-          width: collapsed ? 0 : sidebarWidth,
+          width: helpOpen || collapsed ? 0 : sidebarWidth,
           transition: isResizing.current ? 'none' : 'width 0.2s ease',
         }}
       >
@@ -290,7 +313,7 @@ function AppShell() {
       {/* Resize + toggle handle */}
       <div
         className="flex-shrink-0 relative group z-10"
-        style={{ width: collapsed ? 0 : 4 }}
+        style={{ width: helpOpen || collapsed ? 0 : 4 }}
         onMouseDown={startResize}
       >
         <div className="absolute inset-0 bg-border group-hover:bg-accent/40 transition-colors cursor-ew-resize" />
@@ -329,14 +352,15 @@ function AppShell() {
       {/* Main panel */}
       <div className="flex-1 overflow-hidden relative">
         <div
-          key={createOpen ? `create-${state.selectedFolderId ?? 'all'}` : editTarget ? `edit-${editTarget.id}` : trashOpen ? 'trash' : helpOpen ? 'help' : 'grid'}
+          key={createOpen ? `create-${state.selectedFolderId ?? 'all'}` : editTarget ? `edit-${editTarget.id}` : importOpen ? 'import' : exportOpen ? 'export' : trashOpen ? 'trash' : helpOpen ? 'help' : 'grid'}
           className="h-full view-enter"
         >
           {createOpen ? (
             <SnipEditorView
               ref={editorRef}
               mode="create"
-              initialFolderId={state.selectedFolderId ?? ''}
+              initialFolderId={state.selectedFolderId === '__unfiled__' ? '' : (state.selectedFolderId ?? '')}
+              initialSectionId={createSectionId}
               collapsed={collapsed}
               onToggleSidebar={toggleCollapse}
               onClose={() => setCreateOpen(false)}
@@ -350,12 +374,28 @@ function AppShell() {
               onToggleSidebar={toggleCollapse}
               onClose={() => setEditTarget(null)}
             />
+          ) : importOpen ? (
+            <ImportView
+              collapsed={collapsed}
+              onToggleSidebar={toggleCollapse}
+              onClose={() => setImportOpen(false)}
+              onOpenExport={() => { setImportOpen(false); setExportOpen(true) }}
+              onOpenHelp={() => setHelpOpen(true)}
+            />
+          ) : exportOpen ? (
+            <ExportView
+              collapsed={collapsed}
+              onToggleSidebar={toggleCollapse}
+              onClose={() => setExportOpen(false)}
+              onOpenImport={() => { setExportOpen(false); setImportOpen(true) }}
+              onOpenHelp={() => setHelpOpen(true)}
+            />
           ) : trashOpen ? (
-            <TrashView collapsed={collapsed} onToggleSidebar={toggleCollapse} onOpenHelp={() => setHelpOpen(true)} />
+            <TrashView collapsed={collapsed} onToggleSidebar={toggleCollapse} onOpenHelp={() => setHelpOpen(true)} onOpenImport={() => setImportOpen(true)} onOpenExport={() => setExportOpen(true)} />
           ) : helpOpen ? (
-            <HelpView collapsed={collapsed} onToggleSidebar={toggleCollapse} onOpenHelp={() => setHelpOpen(true)} onGoHome={() => setHelpOpen(false)} />
+            <HelpView onOpenHelp={() => setHelpOpen(true)} onGoHome={() => setHelpOpen(false)} onOpenImport={() => setImportOpen(true)} onOpenExport={() => setExportOpen(true)} />
           ) : (
-            <SnipGrid onAdd={openCreateEditor} onEdit={openEditor} collapsed={collapsed} onToggleSidebar={toggleCollapse} onOpenHelp={() => setHelpOpen(true)} />
+            <SnipGrid onAdd={openCreateEditor} onEdit={openEditor} collapsed={collapsed} onToggleSidebar={toggleCollapse} onOpenHelp={() => setHelpOpen(true)} onOpenImport={() => setImportOpen(true)} onOpenExport={() => setExportOpen(true)} />
           )}
         </div>
 

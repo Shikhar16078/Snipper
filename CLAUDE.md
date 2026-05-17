@@ -39,21 +39,46 @@ loaded = { ...initialState, ...(await window.api.loadData()) }
 ## Data Model
 
 ```ts
-interface Folder   { id, name, parentId: string | null, createdAt }
-interface Snip     { id, folderId, name, body, linkTitles?: Record<string, string>, createdAt, updatedAt }
+interface Folder {
+  id, name, parentId: string | null, createdAt
+  defaultSectionName?: string   // custom label for the implicit General section
+  defaultSectionOrder?: number  // position of General among named sections (-1 = first)
+}
+
+interface Section { id, name, folderId: string, order: number, createdAt }
+
+interface Snip {
+  id, folderId, name, body, createdAt, updatedAt
+  sectionId?: string | null              // null / absent = General section
+  linkTitles?: Record<string, string>
+  tagIds?: string[]
+  pinned?: boolean                       // starred snip
+  copyCount?: number                     // times copied (drives most-used sort)
+  lastCopiedAt?: number
+}
+
 interface Divider  { id, afterFolderId: string | null }  // null = before all root folders
+interface Tag      { id, name, color: string }           // color is hex from the fixed palette
 
 interface TrashedSnip   { id, type: 'snip', deletedAt, snip: Snip }
 interface TrashedFolder { id, type: 'folder', deletedAt, folders: Folder[], snips: Snip[], dividers: Divider[] }
-type TrashedItem = TrashedSnip | TrashedFolder
+interface TrashedSection { id, type: 'section', deletedAt, section: Section, snipIds: string[] }
+type TrashedItem = TrashedSnip | TrashedFolder | TrashedSection
+
+type SnipSort = 'updated' | 'az' | 'za' | 'newest' | 'oldest' | 'most-used'
+type ToolbarPosition = 'left' | 'top' | 'right' | 'bottom'
 
 interface AppState {
   folders: Folder[]
   snips: Snip[]
+  sections: Section[]              // named groups within folders
   dividers: Divider[]              // sidebar separators
+  tags: Tag[]                      // colored cross-folder labels
   trash: TrashedItem[]             // soft-deleted items
   selectedFolderId: string | null  // null = "All Snips"
+  selectedTagId: string | null     // when set, grid shows snips matching this tag
   viewMode: 'grid' | 'list'
+  snipSort: SnipSort               // active sort order for the snip grid
   theme: Theme
   allSnipsLabel: string            // renameable "All Snips" label
   tipsEnabled: boolean
@@ -62,31 +87,49 @@ interface AppState {
   holdAction: 'edit' | 'copy'     // what holding a snip card does
   trashAutoPurge: number | null    // null = off, number = ms TTL for trash items
   autoUpdateEnabled: boolean       // run background update check on launch
+  toolbarPosition: ToolbarPosition // floating toolbar placement
 }
 ```
 
 `linkTitles` maps detected URLs in the snip body to custom display labels. Only non-default, non-empty titles are stored. The reducer sanitizes via `sanitizeLinkTitles()` on every add/edit.
 
+`tagIds` on a snip holds the IDs of assigned tags. Optional — absence means no tags.
+
+`sectionId` on a snip points to a `Section` in the same folder. `null` or absent = General (the implicit unsectioned bucket). `TrashedFolder` does **not** capture sections — restoring a folder restores subfolders and snips but snips land in General.
+
+**Tag color palette** (`TAG_COLORS` exported from `src/types/index.ts`): 9 fixed hex values — red `#ef4444`, orange `#f97316`, amber `#f59e0b`, green `#22c55e`, teal `#14b8a6`, blue `#3b82f6`, violet `#8b5cf6`, pink `#ec4899`, slate `#64748b`.
+
 ## Actions
 
 ```text
 ADD_FOLDER / RENAME_FOLDER / DELETE_FOLDER / REORDER_FOLDER / SELECT_FOLDER
-ADD_SNIP / EDIT_SNIP / DELETE_SNIP / MOVE_SNIP
-SET_VIEW_MODE / SET_THEME / SET_ALL_SNIPS_LABEL
+ADD_SNIP / EDIT_SNIP / DELETE_SNIP / MOVE_SNIP / DUPLICATE_SNIP
+TOGGLE_PIN_SNIP / RECORD_COPY
+ADD_TAG / EDIT_TAG / DELETE_TAG / REORDER_TAG / SELECT_TAG / SET_SNIP_TAGS
+ADD_SECTION / RENAME_SECTION / DELETE_SECTION / REORDER_SECTION
+RENAME_DEFAULT_SECTION / SET_SNIP_SECTION / REORDER_SECTIONS_IN_FOLDER / IMPORT_SECTIONS
+SET_VIEW_MODE / SET_THEME / SET_ALL_SNIPS_LABEL / SET_SNIP_SORT / SET_TOOLBAR_POSITION
 SET_TIPS_ENABLED / SET_DELETE_CONFIRM_ENABLED / SET_HOLD_ACTION / TOGGLE_EDIT_MODE
 SET_TRASH_AUTO_PURGE / SET_AUTO_UPDATE_ENABLED / PURGE_EXPIRED_TRASH
 ADD_DIVIDER / MOVE_DIVIDER / REMOVE_DIVIDER
 RESTORE_TRASH_ITEM / RESTORE_ALL_TRASH / PERMANENTLY_DELETE_TRASH_ITEM / EMPTY_TRASH
-LOAD_STATE
+IMPORT_DATA / LOAD_STATE
 ```
 
 **Reducer invariants:**
 
-- `DELETE_FOLDER` soft-deletes — captures full subtree (folders + snips + dividers) into a `TrashedFolder` entry. Resets `selectedFolderId` to null if the deleted folder was selected.
+- `DELETE_FOLDER` soft-deletes — captures full subtree (folders + snips + dividers) into a `TrashedFolder` entry. Resets `selectedFolderId` to null if the deleted folder was selected. **Sections are not captured** — snips restored from a trashed folder land in General.
 - `DELETE_SNIP` soft-deletes — moves snip into a `TrashedSnip` entry in `trash`.
+- `DELETE_SECTION` soft-deletes — captures the section + its snip IDs into a `TrashedSection` entry; clears `sectionId` on affected snips (they fall into General).
 - `ADD_FOLDER` auto-selects the new folder.
 - `TOGGLE_EDIT_MODE` flips `isEditMode` boolean.
+- `MOVE_SNIP` — `{ id, folderId }`: updates `folderId` and clears `sectionId` to `null` (sections are folder-scoped; a moved snip lands in General of the destination folder).
 - `REORDER_FOLDER` — `{ sourceId, afterId, parentId }`: removes source from array, updates its `parentId`, inserts after `afterId` (or at start of `parentId` group if `afterId` is null). Guards against moving a folder into its own descendants.
+- `SELECT_TAG` sets `selectedTagId` and clears `selectedFolderId`. `SELECT_FOLDER` clears `selectedTagId`.
+- `DELETE_TAG` removes the tag from `state.tags`, scrubs its ID from every snip's `tagIds`, and resets `selectedTagId` if it was the deleted tag.
+- `SET_SNIP_TAGS` — `{ snipId, tagIds }`: replaces the full `tagIds` array on a single snip.
+- `REORDER_TAG` — `{ sourceId, afterId }`: moves a tag after the specified tag ID (or to the front if `afterId` is null).
+- `IMPORT_DATA` — `{ folders, snips, sections, tags }`: appends all four arrays to existing state; never replaces. Called after `computePreview` has already deduped and remapped IDs.
 
 ## Theming
 
@@ -122,13 +165,15 @@ Sidebar header and all main-panel navbars are `h-[40px]` on Mac. Sidebar header 
 
 ## Main Panel Views
 
-`App.tsx` renders one of five views in the main panel based on state:
+`App.tsx` renders one of seven views in the main panel based on state:
 
 1. **`SnipEditorView` (create)** — when `createOpen === true`
 2. **`SnipEditorView` (edit)** — when `editTarget !== null`
 3. **`TrashView`** — when `trashOpen === true`
 4. **`HelpView`** — when `helpOpen === true`
-5. **`SnipGrid`** — default
+5. **`ExportView`** — when `exportOpen === true`
+6. **`ImportView`** — when `importOpen === true`
+7. **`SnipGrid`** — default
 
 The `N` shortcut sets `createOpen = true`. Clicking Edit on a snip card sets `editTarget`. Clicking trash in the sidebar sets `trashOpen`. The Help Center is opened from Settings gear → Help Center. Navigating to any folder via sidebar always closes trash (via `useEffect` on `selectedFolderId`).
 
@@ -195,13 +240,94 @@ Same logic handles cross-parent moves: dropping a folder before/after a folder w
 
 ## DragContext
 
-`src/context/DragContext.tsx` tracks three independent drag states:
+`src/context/DragContext.tsx` tracks five independent drag states:
 
-- `draggingSnipId` / `setDraggingSnipId` — snip card → folder drop
+- `draggingSnipId` / `setDraggingSnipId` — single snip card being dragged
+- `draggingSnipIds` / `setDraggingSnipIds` — all snip IDs in an active bulk drag (selection mode)
 - `draggingDividerId` / `setDraggingDividerId` — separator repositioning
 - `draggingFolderId` / `setDraggingFolderId` — folder reordering (edit mode only)
+- `draggingTagId` / `setDraggingTagId` — tag reordering in sidebar (edit mode only)
 
-All are null when no drag is active. Each drag type checks its own context value and does not interfere with the others.
+All are null/empty when no drag is active. Each drag type checks its own context value and does not interfere with the others.
+
+**Important:** Drop handlers must read snip IDs from `e.dataTransfer.getData('text/plain')` (single) or `'application/json'` (bulk), not from DragContext — React state may not have updated by the time `dragover` fires, causing stale reads. Use `e.dataTransfer.types.includes('text/plain')` in `dragover` handlers to synchronously detect a snip drag.
+
+**`effectAllowed` / `dropEffect` contract:** SnipCard sets `effectAllowed = 'move'` in `dragstart`. All drop targets (`FolderItem`, tag rows, trash) must set `dropEffect = 'move'` (not `'copy'`) in their `dragover` handlers — a mismatch silently prevents the `drop` event from firing.
+
+## Tags
+
+Tags are cross-folder colored labels. `state.tags` is an ordered array; `state.selectedTagId` drives filtering in `SnipGrid`.
+
+**Sidebar:** Tags section renders between "Unfiled" row and folder tree. Always visible when `state.tags.length > 0` or `isEditMode`. Each tag row:
+
+- Colored dot (6px, `tag.color`) + name + snip count badge
+- Click → `SELECT_TAG` (clears `selectedFolderId`)
+- Selected highlight uses the tag's own color (`backgroundColor: tag.color + '18'`, left border in `tag.color`)
+- Snip drag-over highlight: `backgroundColor: tag.color + '22'` + `boxShadow` ring
+- Edit mode: pencil (inline rename) + color dot (9-swatch popover) + trash icon
+- Reorder by drag in edit mode; `REORDER_TAG { sourceId, afterId }` on drop
+
+**Grid:** When `selectedTagId` is set, `viewSnips` filters `state.snips` to those with `tagIds?.includes(selectedTagId)`. Title badge shows a colored dot + tag name.
+
+**SnipCard:** Tag pills render below the body when `snip.tagIds?.length > 0`. Pills: small dot + name, colored by tag. Clicking a pill dispatches `SELECT_TAG`. Capped at 4 pills with a `+N` overflow badge.
+
+**SnipEditorView:** Tags section in the right panel (between Folder and Links). Shows assigned tags as removable pills. "+ Add tag" button opens an inline popover with search and a create-new-tag row. `tagIds` is included in dirty tracking and save payload.
+
+**Drag snip → tag row:** `onDragOver` checks `e.dataTransfer.types.includes('text/plain')`, sets `dropEffect = 'move'`. `onDrop` reads bulk IDs from `'application/json'` (fires `snipper:bulk-drop-pending` custom event) or single ID from `'text/plain'` (dispatches `SET_SNIP_TAGS` directly with `new Set` deduplication).
+
+## Sections
+
+Sections are named groups within a single folder. `state.sections` is a flat array; each section has `folderId` and `order`. The implicit **General** group has no Section record — it is computed as snips where `sectionId` is null or points to a deleted section.
+
+**Rendering order in `SnipGrid`:** Both General and named sections get an `_order` field. General → `_order = folder.defaultSectionOrder ?? -1`; Named → `_order = section.order`. All slots are sorted by `_order`, giving full positional control including General anywhere in the list.
+
+**Section organizer** — toolbar list icon, slide-in panel. Shows all sections in order with drag handles. Rename inline; delete with inline confirm (snips fall back to General). Reorder by drag: `REORDER_SECTIONS_IN_FOLDER { folderId, orderedIds }`.
+
+**Snip-to-section assignment:** `SET_SNIP_SECTION { snipId, sectionId }`. Set `sectionId: null` to move to General. Drag a snip onto a section header (single or bulk via `snipper:bulk-drop-pending`).
+
+**Section collapsing:** `sectionCollapsed` local state in SnipGrid (`Record<string, boolean>`). `__general__` key for General. Toolbar button toggles all at once.
+
+**`validSectionIds`:** Computed as `new Set(folderSections.map(s => s.id))` inside the sections render block. Snips matching General = `!s.sectionId || !validSectionIds.has(s.sectionId)`.
+
+**Organizer counts** use `displaySnips` (same source as section headers) so both always match.
+
+## Multi-Select
+
+Selection mode lets users pick multiple snip cards and apply bulk Move / Tag / Delete in one step.
+
+**Activation:** Grid-plus icon button in SnipGrid toolbar toggles `isSelectionMode`.
+
+**Selection UX:**
+
+- Click (mouseup) on a card toggles it in/out of `selectedSnipIds`. No action taken on mousedown.
+- Selected card: `border-accent bg-accent/[0.06]` — accent border + subtle tint. No checkbox dot.
+- Action bar replaces footer when `isSelectionMode`: shows count, Select All, Deselect All, Move, Tag, Delete, Cancel buttons.
+
+**Escape flow (two-level):**
+
+1. If a bulk modal is open → close it (stay in selection mode)
+2. If `discardConfirmOpen` → close confirm (stay in selection mode)
+3. Otherwise → `requestExitSelectionMode()`: if cards selected → show "Discard selection?" confirm; if none selected → exit immediately
+4. On the discard confirm: Enter = `exitSelectionMode()`, Escape = keep selecting
+
+**Bulk context menu:** Right-click any card in selection mode → auto-selects that card if not already selected → shows fixed-position popup with Move / Tag / Delete for all selected.
+
+**Bulk drag:**
+
+- `draggable` is always `true` on SnipCard (not gated by `isSelectionMode`).
+- If `isSelectionMode && selected && bulkDragIds.length > 1`: sets `draggingSnipIds` in DragContext, writes all IDs to `'application/json'` dataTransfer, shows stacked ghost pill with count badge.
+- All selected cards dim (`opacity-40`) during drag via `isInBulkDrag = draggingSnipIds.includes(snip.id)`.
+- Drop handlers fire `snipper:bulk-drop-pending` custom event with `{ type, snipIds, ... }`.
+- `SnipGrid` listens for `snipper:bulk-drop-pending` → sets `pendingBulkDrop` state → renders confirmation modal before dispatching any actions.
+
+**`PendingBulkDrop` type** (defined in SnipGrid):
+
+```ts
+type PendingBulkDrop =
+  | { type: 'move';   snipIds: string[]; folderId: string; folderName: string }
+  | { type: 'tag';    snipIds: string[]; tagId: string; tagName: string; tagColor: string }
+  | { type: 'delete'; snipIds: string[] }
+```
 
 ## Trash System
 
@@ -211,6 +337,14 @@ Soft-delete pattern: items moved to `state.trash` on delete rather than permanen
 - **Drag to trash** — dragging a snip card over the sidebar trash button dispatches `DELETE_SNIP` directly.
 - Each trash card has inline **Recover** (accent) and **Delete** (red) buttons at the bottom-right, with confirm modals.
 - Restore confirm shows where the item will be restored to (folder name or "All Snips").
+
+## Export & Import
+
+Both views are accessed from Settings gear → Export Snips / Import Snips.
+
+**`ExportView`** (`src/components/data/ExportView.tsx`) — All snips start selected. Folder cards are collapsible; clicking a folder header toggles all its snips. Snips inside folders with sections are rendered grouped by section, mirroring SnipGrid's `_order`-based slot sort. `handleExport` builds the payload: ancestor folders of selected snips, sections only for sections that have ≥1 selected snip, tags referenced by selected snips. Downloads a `.json` file.
+
+**`ImportView`** (`src/components/data/ImportView.tsx`) — Drag-and-drop or click-to-browse for a `.json` file. `validateAndParse` does strict validation with user-friendly errors; rejects non-Snipper JSON via `_snipperExport !== true` guard. `computePreview` is a pure function producing `{ newFolders, newSnips, newSections, newTags, skippedSnips }`: folders matched by full path, sections by `name + folderId`, tags by `name + color`, snips deduped by `snipKey(name, body, pinned, remappedSectionId, sortedRemappedTagIds)` — all in destination ID space. New folders with no snips are pruned; sections for unreferenced folders are dropped. Preview phase shows what will be added and what will be skipped. `handleImport` dispatches `IMPORT_DATA` (append-only) and closes.
 
 ## Snip Card Interactions
 
@@ -304,7 +438,7 @@ src/
     reducer.ts     # Pure reducer
     initialState.ts
   context/
-    DragContext.tsx # draggingSnipId + draggingDividerId + draggingFolderId
+    DragContext.tsx # draggingSnipId + draggingSnipIds + draggingDividerId + draggingFolderId + draggingTagId
   hooks/
     useCopyToClipboard.ts
   utils/
@@ -317,12 +451,15 @@ src/
       FolderItem.tsx     # Folder row, rename, delete modal, child add, drag reorder, snip drop target
       Separator.tsx      # DropZone + SeparatorRow
       AddFolderButton.tsx  # (legacy, unused)
+    data/
+      ExportView.tsx     # Export: folder tree with section grouping, selective snip picker
+      ImportView.tsx     # Import: drag-and-drop, validate, preview, append-only commit
     snips/
-      SnipGrid.tsx       # Navbar, search, view toggle, card grid/list
+      SnipGrid.tsx       # Navbar, search, sort, sections, view toggle, card grid/list
       SnipCard.tsx       # Copy, right-click menu, drag, kebab, visit/link buttons
       SnipEditorView.tsx # Full-canvas create+edit editor with side panel and link manager
       EmptyState.tsx
-      TipsFooter.tsx
+      TipsFooter.tsx     # Cycling tips footer + TIP_CATEGORIES (used by HelpView)
     trash/
       TrashView.tsx      # Trash navbar + TrashedSnipCard + TrashedFolderCard
     help/

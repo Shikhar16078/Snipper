@@ -299,8 +299,11 @@ html.dark.dark-nebula {
 
   ::-webkit-scrollbar { width: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: rgb(var(--border)); border-radius: 4px; }
-  ::-webkit-scrollbar-thumb:hover { background: rgb(var(--muted)); }
+  ::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 4px;
+    transition: background 0.3s ease;
+  }
 }
 
 /* Electron Draggable Regions */
@@ -314,25 +317,20 @@ html.dark.dark-nebula {
 /* Unified scrollbar style for editor panes */
 .snip-scroll {
   scrollbar-width: thin;
-  scrollbar-color: rgb(var(--border)) transparent;
+  scrollbar-color: transparent transparent;
 }
-
-.snip-scroll::-webkit-scrollbar {
-  width: 4px;
-}
-
-.snip-scroll::-webkit-scrollbar-track {
-  background: transparent;
-}
-
+.snip-scroll::-webkit-scrollbar { width: 4px; }
+.snip-scroll::-webkit-scrollbar-track { background: transparent; }
 .snip-scroll::-webkit-scrollbar-thumb {
-  background: rgb(var(--border));
+  background: transparent;
   border-radius: 4px;
+  transition: background 0.3s ease;
 }
 
-.snip-scroll::-webkit-scrollbar-thumb:hover {
-  background: rgb(var(--muted));
-}
+/* Scrollbar visible while scrolling — class toggled by JS with 1s debounce */
+.is-scrolling::-webkit-scrollbar-thumb { background: rgb(var(--border)); }
+.is-scrolling::-webkit-scrollbar-thumb:hover { background: rgb(var(--muted)); }
+.is-scrolling.snip-scroll { scrollbar-color: rgb(var(--border)) transparent; }
 
 /* Modal close — exact reverse of animate-pop */
 @keyframes modal-leave {
@@ -374,7 +372,6 @@ html.dark.dark-nebula {
 .help-content-stagger {
   opacity: 0;
   animation: help-content-stagger-in 0.48s cubic-bezier(0.16, 1, 0.3, 1) both;
-  will-change: transform, opacity;
 }
 
 @keyframes help-footer-prev-in {
@@ -461,4 +458,34 @@ html.dark.dark-nebula {
 .update-card-enter {
   animation: update-card-enter 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
   will-change: transform, opacity;
+}
+
+/* Color picker sliders used in TagEditorModal */
+.color-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  outline: none;
+  border: none;
+}
+.color-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: white;
+  border: 2px solid rgba(0, 0, 0, 0.15);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+}
+.color-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: white;
+  border: 2px solid rgba(0, 0, 0, 0.15);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
 }

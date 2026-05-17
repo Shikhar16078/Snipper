@@ -18,6 +18,7 @@ interface SnipEditorViewProps {
   mode: EditorMode
   snip?: Snip
   initialFolderId?: string
+  initialSectionId?: string | null
   collapsed: boolean
   onToggleSidebar: () => void
   onClose: () => void
@@ -73,6 +74,7 @@ export const SnipEditorView = forwardRef<SnipEditorHandle, SnipEditorViewProps>(
   mode,
   snip,
   initialFolderId = '',
+  initialSectionId = null,
   collapsed,
   onToggleSidebar,
   onClose,
@@ -82,8 +84,15 @@ export const SnipEditorView = forwardRef<SnipEditorHandle, SnipEditorViewProps>(
   const [name, setName] = useState(() => mode === 'edit' && snip ? snip.name : '')
   const [body, setBody] = useState(() => mode === 'edit' && snip ? snip.body : '')
   const [folderId, setFolderId] = useState(() => mode === 'edit' && snip ? snip.folderId : initialFolderId)
+  const [sectionId, setSectionId] = useState<string | null>(() => mode === 'edit' && snip ? (snip.sectionId ?? null) : initialSectionId)
+  const [savedSectionId, setSavedSectionId] = useState<string | null>(() => mode === 'edit' && snip ? (snip.sectionId ?? null) : initialSectionId)
   const [linkTitles, setLinkTitles] = useState<Record<string, string>>(() => mode === 'edit' && snip ? (snip.linkTitles ?? {}) : {})
+  const [currentTagIds, setCurrentTagIds] = useState<string[]>(() => mode === 'edit' && snip ? (snip.tagIds ?? []) : [])
+  const [savedTagIds, setSavedTagIds] = useState<string[]>(() => mode === 'edit' && snip ? (snip.tagIds ?? []) : [])
+  const [tagSearch, setTagSearch] = useState('')
   const [internalEditSnip, setInternalEditSnip] = useState<Snip | null>(null)
+  const [isCreatingSection, setIsCreatingSection] = useState(false)
+  const [newSectionName, setNewSectionName] = useState('')
 
   const effectiveSnip = snip ?? internalEditSnip
   const isEditMode = !!effectiveSnip
@@ -98,6 +107,16 @@ export const SnipEditorView = forwardRef<SnipEditorHandle, SnipEditorViewProps>(
 
   const isMac = window.api?.platform === 'darwin'
   const detectedLinks = useMemo(() => extractLinks(body), [body])
+
+
+  const isFirstFolderChange = useRef(true)
+  useEffect(() => {
+    if (isFirstFolderChange.current) { isFirstFolderChange.current = false; return }
+    setSectionId(null)
+    setSavedSectionId(null)
+    setIsCreatingSection(false)
+    setNewSectionName('')
+  }, [folderId])
 
   useEffect(() => {
     setLinkTitles((prev) => {
@@ -169,7 +188,10 @@ export const SnipEditorView = forwardRef<SnipEditorHandle, SnipEditorViewProps>(
     savedCanonical.name !== currentCanonical.name ||
     savedCanonical.body !== currentCanonical.body ||
     savedCanonical.folderId !== currentCanonical.folderId ||
-    linkTitleKey(savedCanonical.linkTitles) !== linkTitleKey(currentCanonical.linkTitles)
+    linkTitleKey(savedCanonical.linkTitles) !== linkTitleKey(currentCanonical.linkTitles) ||
+    JSON.stringify([...currentTagIds].sort()) !== JSON.stringify([...savedTagIds].sort()) ||
+    sectionId !== savedSectionId ||
+    (isCreatingSection && newSectionName.trim() !== '')
 
   const canSave = currentCanonical.name.length > 0 && currentCanonical.body.trim().length > 0
 
@@ -187,6 +209,18 @@ export const SnipEditorView = forwardRef<SnipEditorHandle, SnipEditorViewProps>(
 
   function handleSave() {
     if (!canSave) return
+
+    let effectiveSectionId = sectionId
+    if (isCreatingSection && newSectionName.trim()) {
+      const newSecId = generateId()
+      dispatch({ type: 'ADD_SECTION', payload: { id: newSecId, folderId: currentCanonical.folderId, name: newSectionName.trim() } })
+      effectiveSectionId = newSecId
+      setSectionId(newSecId)
+      setSavedSectionId(newSecId)
+      setIsCreatingSection(false)
+      setNewSectionName('')
+    }
+
     if (isEditMode && currentSnip) {
       dispatch({
         type: 'EDIT_SNIP',
@@ -195,23 +229,31 @@ export const SnipEditorView = forwardRef<SnipEditorHandle, SnipEditorViewProps>(
           name: currentCanonical.name,
           body: currentCanonical.body,
           folderId: currentCanonical.folderId,
+          sectionId: effectiveSectionId,
           linkTitles: currentCanonical.linkTitles,
+          tagIds: currentTagIds,
         },
       })
       setSavedCanonical(currentCanonical)
+      setSavedTagIds([...currentTagIds])
+      setSavedSectionId(effectiveSectionId)
     } else {
       const id = generateId()
       const now = Date.now()
       dispatch({
         type: 'ADD_SNIP',
         payload: { id, name: currentCanonical.name, body: currentCanonical.body,
-          folderId: currentCanonical.folderId, linkTitles: currentCanonical.linkTitles },
+          folderId: currentCanonical.folderId, sectionId: effectiveSectionId,
+          linkTitles: currentCanonical.linkTitles, tagIds: currentTagIds },
       })
       const newSnip: Snip = { id, name: currentCanonical.name, body: currentCanonical.body,
-        folderId: currentCanonical.folderId, linkTitles: currentCanonical.linkTitles,
-        createdAt: now, updatedAt: now }
+        folderId: currentCanonical.folderId, sectionId: effectiveSectionId,
+        linkTitles: currentCanonical.linkTitles,
+        tagIds: currentTagIds, createdAt: now, updatedAt: now }
       setInternalEditSnip(newSnip)
       setSavedCanonical(currentCanonical)
+      setSavedTagIds([...currentTagIds])
+      setSavedSectionId(effectiveSectionId)
     }
   }
   latestHandleSaveRef.current = handleSave
@@ -366,9 +408,88 @@ export const SnipEditorView = forwardRef<SnipEditorHandle, SnipEditorViewProps>(
                   folders={state.folders}
                   value={folderId}
                   onChange={setFolderId}
-                  allSnipsLabel={state.allSnipsLabel || 'All Snips'}
                 />
               </div>
+              {/* Section picker */}
+              {folderId && (() => {
+                const folderSections = state.sections
+                  .filter((s) => s.folderId === folderId)
+                  .sort((a, b) => a.order - b.order)
+                const folder = state.folders.find((f) => f.id === folderId)
+                const defaultName = folder?.defaultSectionName ?? 'General'
+
+                if (isCreatingSection) {
+                  return (
+                    <div>
+                      <label className="block text-[10px] font-semibold tracking-wide uppercase text-muted mb-1">New Section</label>
+                      <input
+                        autoFocus
+                        value={newSectionName}
+                        onChange={(e) => setNewSectionName(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Escape') { setIsCreatingSection(false); setNewSectionName('') } }}
+                        placeholder="Section name…"
+                        className="w-full bg-surface border border-border rounded-lg px-2.5 py-1.5 text-xs text-fg focus:outline-none focus:border-accent transition-colors"
+                      />
+                      {newSectionName.trim() && (
+                        <p className="text-[10px] text-muted mt-1.5 leading-relaxed">
+                          <span className="font-medium text-accent">"{newSectionName.trim()}"</span> will be created in <span className="font-medium text-fg-2">{folder?.name ?? 'this folder'}</span> on save.
+                        </p>
+                      )}
+                      <button
+                        onClick={() => { setIsCreatingSection(false); setNewSectionName('') }}
+                        className="mt-2 flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium text-muted border border-border hover:text-fg hover:border-fg/30 hover:bg-fg/5 transition-colors"
+                      >
+                        <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                        Cancel
+                      </button>
+                    </div>
+                  )
+                }
+
+                if (folderSections.length === 0) {
+                  return (
+                    <div>
+                      <label className="block text-[10px] font-semibold tracking-wide uppercase text-muted mb-1">Section</label>
+                      <button
+                        onClick={() => setIsCreatingSection(true)}
+                        className="flex items-center gap-1.5 w-full px-2.5 py-1.5 rounded-lg border border-dashed border-border text-[11px] font-medium text-muted hover:text-accent hover:border-accent/40 hover:bg-accent/5 transition-colors"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+                        </svg>
+                        Create a section
+                      </button>
+                    </div>
+                  )
+                }
+
+                return (
+                  <div>
+                    <label className="block text-[10px] font-semibold tracking-wide uppercase text-muted mb-1">Section</label>
+                    <select
+                      value={sectionId ?? ''}
+                      onChange={(e) => setSectionId(e.target.value || null)}
+                      className="w-full bg-surface border border-border rounded-lg px-2.5 py-1.5 text-xs text-fg focus:outline-none focus:border-accent transition-colors"
+                    >
+                      <option value="">{defaultName}</option>
+                      {folderSections.map((sec) => (
+                        <option key={sec.id} value={sec.id}>{sec.name}</option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => setIsCreatingSection(true)}
+                      className="flex items-center gap-1 mt-1.5 px-2 py-1 rounded-md text-[10px] font-medium text-muted border border-border hover:text-accent hover:border-accent/40 hover:bg-accent/5 transition-colors"
+                    >
+                      <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+                      </svg>
+                      New section
+                    </button>
+                  </div>
+                )
+              })()}
               {isEditMode && currentSnip ? (
                 <div className="text-[10px] text-muted">
                   <p>Created: {formatDate(currentSnip.createdAt)}</p>
@@ -385,6 +506,53 @@ export const SnipEditorView = forwardRef<SnipEditorHandle, SnipEditorViewProps>(
               </div>
             </div>
           </section>
+
+          {/* Tags section */}
+          {state.tags.length > 0 && (
+            <section className="flex-shrink-0 rounded-xl border border-border bg-panel p-3">
+              <label className="block text-[10px] font-semibold tracking-wide uppercase text-muted mb-2">Tags</label>
+              <div className="relative mb-2">
+                <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input
+                  type="text"
+                  value={tagSearch}
+                  onChange={(e) => setTagSearch(e.target.value)}
+                  placeholder="Search tags…"
+                  className="w-full bg-surface border border-border rounded-md pl-6 pr-2 py-1 text-[11px] text-fg placeholder-muted focus:outline-none focus:border-accent transition-colors"
+                />
+              </div>
+              <div className="space-y-0.5">
+                {(() => {
+                  const tq = tagSearch.trim().toLowerCase()
+                  const filtered = tq ? state.tags.filter((t) => t.name.toLowerCase().includes(tq)) : state.tags
+                  return filtered.length === 0 ? (
+                    <p className="text-[11px] text-muted px-1">No tags found</p>
+                  ) : filtered.map((tag) => {
+                    const isChecked = currentTagIds.includes(tag.id)
+                    return (
+                      <button
+                        key={tag.id}
+                        onClick={() => setCurrentTagIds((prev) =>
+                          isChecked ? prev.filter((id) => id !== tag.id) : [...prev, tag.id]
+                        )}
+                        className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors hover:bg-fg/5"
+                      >
+                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: tag.color }} />
+                        <span className={`flex-1 truncate text-left ${isChecked ? 'text-fg font-medium' : 'text-fg-2'}`}>{tag.name}</span>
+                        {isChecked && (
+                          <svg className="w-3 h-3 flex-shrink-0 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </button>
+                    )
+                  })
+                })()}
+              </div>
+            </section>
+          )}
 
           <section className="min-h-0 flex flex-col rounded-xl border border-border bg-panel p-3">
             <h3 className="flex-shrink-0 text-xs font-semibold text-fg mb-2">Links ({detectedLinks.length})</h3>

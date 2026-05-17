@@ -4,8 +4,11 @@ export const initialState: AppState = {
   folders: [],
   snips: [],
   dividers: [],
+  sections: [],
   trash: [],
+  tags: [],
   selectedFolderId: null,
+  selectedTagId: null,
   viewMode: 'grid',
   theme: 'stone',
   allSnipsLabel: 'All Snips',
@@ -15,4 +18,6 @@ export const initialState: AppState = {
   holdAction: 'edit',
   trashAutoPurge: null,
   autoUpdateEnabled: true,
+  snipSort: 'updated',
+  toolbarPosition: 'right',
 }

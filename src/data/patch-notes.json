@@ -1,5 +1,21 @@
 [
   {
+    "version": "1.3.0",
+    "date": "May 16, 2026",
+    "changes": [
+      "Improved the overall app experience with UI polish and bug fixes",
+      "Tags: create colored tags to organize snips across folders, filter by tag from the sidebar, and manage tags directly from the editor",
+      "Multi-select Actions: select multiple snips at once to quickly move, tag, delete, or drag them together into folders, tags, sections, or Trash",
+      "Sections: organize folders into collapsible sections and easily reorder, rename, or manage them from the Section Organizer",
+      "Drag & Drop Improvements: drag snips directly onto folders, sections, or tags for faster organization",
+      "Folder View: selecting a folder now shows only its direct snips — snips in subfolders stay in their own folder, and count badges reflect this too",
+      "Import & Export: export full workspace snapshots with tags, sections, and starred items preserved, then preview imports before restoring or merging content",
+      "Starred Snips: star important snips and instantly filter between starred and non-starred content",
+      "More Sorting Options: sort snips by modified date, created date, alphabetical order, or most copied",
+      "New Floating Toolbar: the toolbar is now detached from the navbar for a cleaner layout and can be moved to any side of the content area"
+    ]
+  },
+  {
     "version": "1.2.0",
     "date": "May 7, 2026",
     "changes": [
