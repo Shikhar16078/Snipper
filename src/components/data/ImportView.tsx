@@ -2,7 +2,7 @@ import { useState, useRef, useCallback } from 'react'
 import { useApp } from '../../store/AppContext'
 import { Settings } from '../ui/Settings'
 import { generateId } from '../../utils/id'
-import type { Folder, Snip } from '../../types'
+import type { Folder, Section, Snip, Tag } from '../../types'
 
 interface ImportViewProps {
   collapsed: boolean
@@ -18,11 +18,15 @@ interface ImportFile {
   exportedAt: number
   folders: Folder[]
   snips: Snip[]
+  sections?: Section[]
+  tags?: Tag[]
 }
 
 interface ImportPreview {
   newFolders: Folder[]
   newSnips: Snip[]
+  newSections: Section[]
+  newTags: Tag[]
   skippedSnips: Snip[]
 }
 
@@ -33,10 +37,54 @@ function getFolderPath(id: string, folders: Folder[]): string[] {
   return [...getFolderPath(folder.parentId, folders), folder.name]
 }
 
+function validateAndParse(raw: string): ImportFile {
+  let data: unknown
+  try {
+    data = JSON.parse(raw)
+  } catch {
+    throw new Error('This file is not valid JSON. Please use a .json file exported from Snipper.')
+  }
+  if (typeof data !== 'object' || data === null || Array.isArray(data)) {
+    throw new Error('This file is not compatible with Snipper. Only files exported via Settings → Export Snips can be imported.')
+  }
+  const d = data as Record<string, unknown>
+  if (d._snipperExport !== true) {
+    throw new Error("This file wasn't exported from Snipper. Go to Settings → Export Snips to create a compatible export file.")
+  }
+  if (!Array.isArray(d.folders) || !Array.isArray(d.snips)) {
+    throw new Error('The file is missing required data. It may be corrupted or from an incompatible version of Snipper.')
+  }
+  for (const f of d.folders as unknown[]) {
+    if (!f || typeof (f as Record<string, unknown>).id !== 'string' || typeof (f as Record<string, unknown>).name !== 'string') {
+      throw new Error('The file contains invalid folder data and may be corrupted. Try re-exporting from Snipper.')
+    }
+  }
+  for (const s of d.snips as unknown[]) {
+    const snip = s as Record<string, unknown>
+    if (!s || typeof snip.id !== 'string' || typeof snip.name !== 'string' || typeof snip.body !== 'string') {
+      throw new Error('The file contains invalid snip data and may be corrupted. Try re-exporting from Snipper.')
+    }
+  }
+  return data as ImportFile
+}
+
+// Full-metadata key: two snips are duplicates only when ALL meaningful fields match.
+function snipKey(name: string, body: string, pinned: boolean | undefined, sectionId: string | null | undefined, tagIds: string[] | undefined): string {
+  return [
+    name,
+    body,
+    pinned ? '1' : '0',
+    sectionId ?? '',
+    [...(tagIds ?? [])].sort().join('\x01'),
+  ].join('\0')
+}
+
 function computePreview(
   file: ImportFile,
   existingFolders: Folder[],
   existingSnips: Snip[],
+  existingSections: Section[],
+  existingTags: Tag[],
 ): ImportPreview {
   const existingPathToId = new Map<string, string>()
   existingFolders.forEach((f) => {
@@ -79,16 +127,63 @@ function computePreview(
       const newId = generateId()
       oldIdToNewId.set(f.id, newId)
       const newParentId = f.parentId ? (oldIdToNewId.get(f.parentId) ?? null) : null
-      newFolders.push({ id: newId, name: f.name, parentId: newParentId, createdAt: f.createdAt ?? Date.now() })
+      newFolders.push({
+        id: newId,
+        name: f.name,
+        parentId: newParentId,
+        createdAt: f.createdAt ?? Date.now(),
+        defaultSectionName: f.defaultSectionName,
+        defaultSectionOrder: f.defaultSectionOrder,
+      })
     }
   }
 
-  const existingKeys = new Set(existingSnips.map((s) => s.name + '\0' + s.body))
+  // Remap sections: if a same-named section already exists in the target folder, reuse its ID.
+  // This handles both new folders (create) and existing folders (dedup by name).
+  const oldSectionIdToNewId = new Map<string, string>()
+  const newSections: Section[] = []
+
+  for (const sec of (file.sections ?? [])) {
+    const newFolderId = oldIdToNewId.get(sec.folderId)
+    if (!newFolderId) continue
+    const match = existingSections.find((s) => s.folderId === newFolderId && s.name === sec.name)
+    if (match) {
+      oldSectionIdToNewId.set(sec.id, match.id)
+    } else {
+      const newSectionId = generateId()
+      oldSectionIdToNewId.set(sec.id, newSectionId)
+      newSections.push({ ...sec, id: newSectionId, folderId: newFolderId })
+    }
+  }
+
+  // Remap tags: match by name+color to dedup against existing tags
+  const oldTagIdToNewId = new Map<string, string>()
+  const newTags: Tag[] = []
+
+  for (const tag of (file.tags ?? [])) {
+    const match = existingTags.find((t) => t.name === tag.name && t.color === tag.color)
+    if (match) {
+      oldTagIdToNewId.set(tag.id, match.id)
+    } else {
+      const newTagId = generateId()
+      oldTagIdToNewId.set(tag.id, newTagId)
+      newTags.push({ ...tag, id: newTagId })
+    }
+  }
+
+  // Build keys from existing snips — sectionId and tagIds are already in destination space.
+  const existingKeys = new Set(
+    existingSnips.map((s) => snipKey(s.name, s.body, s.pinned, s.sectionId, s.tagIds))
+  )
   const newSnips: Snip[] = []
   const skippedSnips: Snip[] = []
 
   for (const s of file.snips) {
-    if (existingKeys.has(s.name + '\0' + s.body)) {
+    // Remap IDs before dedup so comparison is in destination space.
+    const remappedSectionId = s.sectionId ? (oldSectionIdToNewId.get(s.sectionId) ?? null) : null
+    const remappedTagIds = (s.tagIds ?? []).map((id) => oldTagIdToNewId.get(id)).filter(Boolean) as string[]
+    const key = snipKey(s.name, s.body, s.pinned, remappedSectionId, remappedTagIds)
+    if (existingKeys.has(key)) {
       skippedSnips.push(s)
       continue
     }
@@ -96,13 +191,14 @@ function computePreview(
       ...s,
       id: generateId(),
       folderId: s.folderId ? (oldIdToNewId.get(s.folderId) ?? '') : '',
-      pinned: undefined,
-      copyCount: undefined,
-      lastCopiedAt: undefined,
+      sectionId: remappedSectionId,
+      tagIds: remappedTagIds.length > 0 ? remappedTagIds : undefined,
     })
   }
 
-  // Prune folders that have no new snips referencing them (directly or via ancestors)
+  // Prune new folders that have no snips referencing them (directly or via ancestors).
+  // referencedFolderIds covers both new and existing folders — sections for existing
+  // folders are valid as long as snips land there.
   const referencedFolderIds = new Set<string>()
   const allFolderMap = new Map<string, Folder>([
     ...existingFolders.map((f) => [f.id, f] as [string, Folder]),
@@ -118,8 +214,10 @@ function computePreview(
 
   newSnips.forEach((s) => { if (s.folderId) markAncestors(s.folderId) })
   const prunedFolders = newFolders.filter((f) => referencedFolderIds.has(f.id))
+  // Keep sections for any referenced folder (new or existing)
+  const prunedSections = newSections.filter((s) => referencedFolderIds.has(s.folderId))
 
-  return { newFolders: prunedFolders, newSnips, skippedSnips }
+  return { newFolders: prunedFolders, newSnips, newSections: prunedSections, newTags, skippedSnips }
 }
 
 export function ImportView({ collapsed, onClose, onOpenHelp }: ImportViewProps) {
@@ -138,11 +236,8 @@ export function ImportView({ collapsed, onClose, onOpenHelp }: ImportViewProps) 
       const reader = new FileReader()
       reader.onload = (e) => {
         try {
-          const data = JSON.parse(e.target?.result as string)
-          if (data._snipperExport !== true) throw new Error('Not a Snipper export file.')
-          if (!Array.isArray(data.folders) || !Array.isArray(data.snips))
-            throw new Error('Invalid file format.')
-          const result = computePreview(data as ImportFile, state.folders, state.snips)
+          const data = validateAndParse(e.target?.result as string)
+          const result = computePreview(data, state.folders, state.snips, state.sections, state.tags)
           setPreview(result)
           setFileName(file.name)
           setPhase('preview')
@@ -152,7 +247,7 @@ export function ImportView({ collapsed, onClose, onOpenHelp }: ImportViewProps) 
       }
       reader.readAsText(file)
     },
-    [state.folders, state.snips],
+    [state.folders, state.snips, state.sections, state.tags],
   )
 
   const handleDrop = useCallback(
@@ -162,7 +257,7 @@ export function ImportView({ collapsed, onClose, onOpenHelp }: ImportViewProps) 
       const file = e.dataTransfer.files[0]
       if (!file) return
       if (!file.name.endsWith('.json')) {
-        setError('Please drop a .json file.')
+        setError("Only .json files exported from Snipper can be imported. Drop a file from Settings → Export Snips.")
         return
       }
       parseFile(file)
@@ -179,7 +274,7 @@ export function ImportView({ collapsed, onClose, onOpenHelp }: ImportViewProps) 
 
   function handleImport() {
     if (!preview) return
-    dispatch({ type: 'IMPORT_DATA', payload: { folders: preview.newFolders, snips: preview.newSnips } })
+    dispatch({ type: 'IMPORT_DATA', payload: { folders: preview.newFolders, snips: preview.newSnips, sections: preview.newSections, tags: preview.newTags } })
     onClose()
   }
 
@@ -277,6 +372,8 @@ export function ImportView({ collapsed, onClose, onOpenHelp }: ImportViewProps) 
               {preview.newSnips.length} snip{preview.newSnips.length !== 1 ? 's' : ''} to import
               {preview.newFolders.length > 0 &&
                 ` · ${preview.newFolders.length} new folder${preview.newFolders.length !== 1 ? 's' : ''}`}
+              {preview.newTags.length > 0 &&
+                ` · ${preview.newTags.length} new tag${preview.newTags.length !== 1 ? 's' : ''}`}
               {preview.skippedSnips.length > 0 &&
                 ` · ${preview.skippedSnips.length} duplicate${preview.skippedSnips.length !== 1 ? 's' : ''} skipped`}
             </p>

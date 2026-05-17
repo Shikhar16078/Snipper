@@ -1,4 +1,4 @@
-import type { AppState, ViewMode, Theme, HoldAction, TrashAutoPurge, SnipSort, ToolbarPosition, Folder, Snip, Section } from '../types'
+import type { AppState, ViewMode, Theme, HoldAction, TrashAutoPurge, SnipSort, ToolbarPosition, Folder, Snip, Section, Tag } from '../types'
 
 export type Action =
   | { type: 'ADD_FOLDER'; payload: { name: string; parentId?: string | null } }
@@ -20,7 +20,7 @@ export type Action =
   | { type: 'SET_AUTO_UPDATE_ENABLED'; payload: boolean }
   | { type: 'SET_SNIP_SORT'; payload: SnipSort }
   | { type: 'SET_TOOLBAR_POSITION'; payload: ToolbarPosition }
-  | { type: 'IMPORT_DATA'; payload: { folders: Folder[]; snips: Snip[] } }
+  | { type: 'IMPORT_DATA'; payload: { folders: Folder[]; snips: Snip[]; sections: Section[]; tags: Tag[] } }
   | { type: 'TOGGLE_PIN_SNIP'; payload: { id: string } }
   | { type: 'DUPLICATE_SNIP'; payload: { id: string } }
   | { type: 'RECORD_COPY'; payload: { id: string } }

@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { useApp } from '../../store/AppContext'
 import { flattenFolders, getAllDescendantIds } from '../../utils/folders'
 import { Settings } from '../ui/Settings'
+import type { Snip } from '../../types'
 
 interface ExportViewProps {
   collapsed: boolean
@@ -33,6 +34,30 @@ function SelectionDot({ state }: { state: CheckState }) {
         <div className="w-1.5 h-0.5 bg-accent rounded-full" />
       )}
     </div>
+  )
+}
+
+function SnipRow({ snip, isSelected, isLast, onToggle }: { snip: Snip; isSelected: boolean; isLast: boolean; onToggle: (id: string) => void }) {
+  return (
+    <button
+      onClick={() => onToggle(snip.id)}
+      className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
+        !isLast ? 'border-b border-border/25' : ''
+      } ${isSelected ? 'bg-accent/5 hover:bg-accent/8' : 'hover:bg-fg/4'}`}
+    >
+      <div className={`w-0.5 h-4 rounded-full flex-shrink-0 transition-colors ${isSelected ? 'bg-accent' : 'bg-transparent'}`} />
+      <svg className={`w-3.5 h-3.5 flex-shrink-0 transition-colors ${isSelected ? 'text-accent/60' : 'text-muted/50'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+      <span className={`text-xs flex-1 min-w-0 truncate transition-colors ${isSelected ? 'text-fg font-medium' : 'text-fg-2'}`}>
+        {snip.name}
+      </span>
+      {isSelected && (
+        <svg className="w-3 h-3 text-accent flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+        </svg>
+      )}
+    </button>
   )
 }
 
@@ -112,12 +137,21 @@ export function ExportView({ collapsed, onClose, onOpenHelp }: ExportViewProps) 
     selectedSnips.forEach((s) => addAncestors(s.folderId))
     const exportFolders = state.folders.filter((f) => neededFolderIds.has(f.id))
 
+    const exportFolderIds = new Set(exportFolders.map((f) => f.id))
+    const selectedSectionIds = new Set(selectedSnips.map((s) => s.sectionId).filter((id): id is string => !!id))
+    const exportSections = state.sections.filter((s) => exportFolderIds.has(s.folderId) && selectedSectionIds.has(s.id))
+
+    const referencedTagIds = new Set(selectedSnips.flatMap((s) => s.tagIds ?? []))
+    const exportTags = state.tags.filter((t) => referencedTagIds.has(t.id))
+
     const payload = {
       _snipperExport: true,
       version: '1',
       exportedAt: Date.now(),
       folders: exportFolders,
       snips: selectedSnips,
+      sections: exportSections,
+      tags: exportTags,
     }
 
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
@@ -316,55 +350,63 @@ export function ExportView({ collapsed, onClose, onOpenHelp }: ExportViewProps) 
                     )}
                   </div>
 
-                  {/* Snip rows */}
-                  {isExpanded && folderSnips.length > 0 && (
-                    <div className="border-t border-border/40">
-                      {folderSnips.map((snip, i) => {
-                        const isSelected = !!selected[snip.id]
-                        return (
-                          <button
-                            key={snip.id}
-                            onClick={() => toggleSnip(snip.id)}
-                            className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
-                              i < folderSnips.length - 1 ? 'border-b border-border/25' : ''
-                            } ${isSelected ? 'bg-accent/5 hover:bg-accent/8' : 'hover:bg-fg/4'}`}
-                          >
-                            {/* Left accent bar */}
-                            <div
-                              className={`w-0.5 h-4 rounded-full flex-shrink-0 transition-colors ${
-                                isSelected ? 'bg-accent' : 'bg-transparent'
-                              }`}
+                  {/* Snip rows — grouped by section when sections exist, matching SnipGrid ordering */}
+                  {isExpanded && folderSnips.length > 0 && (() => {
+                    const folderSections = state.sections.filter((s) => s.folderId === folder.id)
+                    if (folderSections.length === 0) {
+                      return (
+                        <div className="border-t border-border/40">
+                          {folderSnips.map((snip, i) => (
+                            <SnipRow
+                              key={snip.id}
+                              snip={snip}
+                              isSelected={!!selected[snip.id]}
+                              isLast={i === folderSnips.length - 1}
+                              onToggle={toggleSnip}
                             />
+                          ))}
+                        </div>
+                      )
+                    }
 
-                            <svg
-                              className={`w-3.5 h-3.5 flex-shrink-0 transition-colors ${
-                                isSelected ? 'text-accent/60' : 'text-muted/50'
-                              }`}
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
+                    // Mirror SnipGrid: give General _order = defaultSectionOrder ?? -1
+                    // so it sorts correctly against named sections in all configurations.
+                    const generalLabel = folder.defaultSectionName || 'General'
+                    const generalDisplayOrder = folder.defaultSectionOrder ?? -1
+                    const validSectionIds = new Set(folderSections.map((s) => s.id))
+                    type Slot = { id: string; name: string; _order: number }
+                    const slots: Slot[] = [
+                      { id: '__general__', name: generalLabel, _order: generalDisplayOrder },
+                      ...folderSections.map((s) => ({ id: s.id, name: s.name, _order: s.order })),
+                    ].sort((a, b) => a._order - b._order)
 
-                            <span
-                              className={`text-xs flex-1 min-w-0 truncate transition-colors ${
-                                isSelected ? 'text-fg font-medium' : 'text-fg-2'
-                              }`}
-                            >
-                              {snip.name}
-                            </span>
-
-                            {isSelected && (
-                              <svg className="w-3 h-3 text-accent flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                              </svg>
-                            )}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  )}
+                    return (
+                      <div className="border-t border-border/40">
+                        {slots.map((slot) => {
+                          const snipsInSlot = slot.id === '__general__'
+                            ? folderSnips.filter((s) => !s.sectionId || !validSectionIds.has(s.sectionId!))
+                            : folderSnips.filter((s) => s.sectionId === slot.id)
+                          if (snipsInSlot.length === 0) return null
+                          return (
+                            <div key={slot.id}>
+                              <div className="px-4 py-1.5 flex items-center gap-2 border-b border-border/20 bg-fg/[0.02]">
+                                <span className="text-[10px] font-semibold tracking-wider uppercase text-muted/60">{slot.name}</span>
+                              </div>
+                              {snipsInSlot.map((snip, i) => (
+                                <SnipRow
+                                  key={snip.id}
+                                  snip={snip}
+                                  isSelected={!!selected[snip.id]}
+                                  isLast={i === snipsInSlot.length - 1}
+                                  onToggle={toggleSnip}
+                                />
+                              ))}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )
+                  })()}
                 </div>
               )
             })}
@@ -424,43 +466,14 @@ export function ExportView({ collapsed, onClose, onOpenHelp }: ExportViewProps) 
                 {expanded.has('__unfiled__') && (
                   <div className="border-t border-border/40">
                     {unfiledSnips.map((snip, i) => {
-                      const isSelected = !!selected[snip.id]
                       return (
-                        <button
+                        <SnipRow
                           key={snip.id}
-                          onClick={() => toggleSnip(snip.id)}
-                          className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
-                            i < unfiledSnips.length - 1 ? 'border-b border-border/25' : ''
-                          } ${isSelected ? 'bg-accent/5 hover:bg-accent/8' : 'hover:bg-fg/4'}`}
-                        >
-                          <div
-                            className={`w-0.5 h-4 rounded-full flex-shrink-0 transition-colors ${
-                              isSelected ? 'bg-accent' : 'bg-transparent'
-                            }`}
-                          />
-                          <svg
-                            className={`w-3.5 h-3.5 flex-shrink-0 transition-colors ${
-                              isSelected ? 'text-accent/60' : 'text-muted/50'
-                            }`}
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                          </svg>
-                          <span
-                            className={`text-xs flex-1 min-w-0 truncate transition-colors ${
-                              isSelected ? 'text-fg font-medium' : 'text-fg-2'
-                            }`}
-                          >
-                            {snip.name}
-                          </span>
-                          {isSelected && (
-                            <svg className="w-3 h-3 text-accent flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                            </svg>
-                          )}
-                        </button>
+                          snip={snip}
+                          isSelected={!!selected[snip.id]}
+                          isLast={i === unfiledSnips.length - 1}
+                          onToggle={toggleSnip}
+                        />
                       )
                     })}
                   </div>

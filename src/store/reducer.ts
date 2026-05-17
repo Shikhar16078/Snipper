@@ -211,7 +211,7 @@ export function reducer(state: AppState, action: Action): AppState {
         ...state,
         snips: state.snips.map((s) =>
           s.id === action.payload.id
-            ? { ...s, folderId: action.payload.folderId, updatedAt: Date.now() }
+            ? { ...s, folderId: action.payload.folderId, sectionId: null, updatedAt: Date.now() }
             : s,
         ),
       }
@@ -295,8 +295,10 @@ export function reducer(state: AppState, action: Action): AppState {
     case 'IMPORT_DATA':
       return {
         ...state,
-        folders: [...state.folders, ...action.payload.folders],
-        snips:   [...state.snips,   ...action.payload.snips],
+        folders:  [...state.folders,  ...action.payload.folders],
+        snips:    [...state.snips,    ...action.payload.snips],
+        sections: [...state.sections, ...action.payload.sections],
+        tags:     [...state.tags,     ...action.payload.tags],
       }
 
     case 'TOGGLE_EDIT_MODE':
