@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import type { Snip, Folder, Section, SnipSort } from '../../types'
+import type { Snip, Section, SnipSort } from '../../types'
 import { generateId } from '../../utils/id'
 
 type PendingBulkDrop =
