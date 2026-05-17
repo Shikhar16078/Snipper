@@ -1,16 +1,18 @@
 [
   {
     "version": "1.3.0",
-    "date": "May 7, 2026",
+    "date": "May 16, 2026",
     "changes": [
-      "Tags: create colored labels and assign them to snips for cross-folder organization — click any tag in the sidebar to filter your view",
-      "Multi-select: activate Selection Mode to pick multiple snip cards and bulk Move, Tag, or Delete them in one action",
-      "Drag selected cards as a group onto a folder, tag, or Trash in the sidebar — a confirmation step appears before the action is applied",
-      "Right-click any card in Selection Mode to open the full bulk actions menu for all selected snips",
-      "Drag any snip directly onto a tag row in the sidebar to assign that tag instantly",
-      "Tag pills appear on snip cards below the body — click a pill to jump straight to that tag view",
-      "Assign and manage tags per snip from the new Tags section in the editor right panel",
-      "Reorder tags in the sidebar via drag and drop in Edit Mode"
+      "Improved the overall app experience with UI polish and bug fixes",
+      "Tags: create colored tags to organize snips across folders, filter by tag from the sidebar, and manage tags directly from the editor",
+      "Multi-select Actions: select multiple snips at once to quickly move, tag, delete, or drag them together into folders, tags, sections, or Trash",
+      "Sections: organize folders into collapsible sections and easily reorder, rename, or manage them from the Section Organizer",
+      "Drag & Drop Improvements: drag snips directly onto folders, sections, or tags for faster organization",
+      "Folder View: selecting a folder now shows only its direct snips — snips in subfolders stay in their own folder, and count badges reflect this too",
+      "Import & Export: export full workspace snapshots with tags, sections, and starred items preserved, then preview imports before restoring or merging content",
+      "Starred Snips: star important snips and instantly filter between starred and non-starred content",
+      "More Sorting Options: sort snips by modified date, created date, alphabetical order, or most copied",
+      "New Floating Toolbar: the toolbar is now detached from the navbar for a cleaner layout and can be moved to any side of the content area"
     ]
   },
   {
