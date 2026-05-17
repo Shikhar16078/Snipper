@@ -38,10 +38,6 @@ function sortSnips(snips: Snip[], sort: SnipSort): Snip[] {
   })
 }
 
-function getAllDescendantIds(folderId: string, folders: Folder[]): string[] {
-  const children = folders.filter((f) => f.parentId === folderId)
-  return children.flatMap((c) => [c.id, ...getAllDescendantIds(c.id, folders)])
-}
 
 type SectionDisplayItem =
   | { kind: 'general'; id: '__general__'; _order: number }
@@ -250,10 +246,7 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
         ? [...state.snips]
         : isUnfiled
           ? state.snips.filter((s) => !state.folders.some((f) => f.id === s.folderId))
-          : state.snips.filter((s) => {
-              const ids = [state.selectedFolderId!, ...getAllDescendantIds(state.selectedFolderId!, state.folders)]
-              return ids.includes(s.folderId)
-            })
+          : state.snips.filter((s) => s.folderId === state.selectedFolderId)
 
   // ── Apply filters ────────────────────────────────────────────────────────
   const scopeBase  = filterFolderIds.size > 0
@@ -1389,9 +1382,10 @@ export function SnipGrid({ onAdd, onEdit, collapsed, onToggleSidebar, onOpenHelp
                     const isRenaming = orgRenamingId === item.id
                     const isDragging = orgDraggingId === item.id
                     const isConfirmingDelete = orgConfirmDeleteId === item.id
+                    const validSectionIdsOrg = new Set(folderSections.map((s) => s.id))
                     const snipCount = isGeneral
-                      ? state.snips.filter((s) => s.folderId === currentFolder.id && (!s.sectionId || !folderSections.some((fs) => fs.id === s.sectionId))).length
-                      : state.snips.filter((s) => s.sectionId === item.id).length
+                      ? displaySnips.filter((s) => !s.sectionId || !validSectionIdsOrg.has(s.sectionId)).length
+                      : displaySnips.filter((s) => s.sectionId === item.id).length
 
                     return (
                       <div key={item.id}>

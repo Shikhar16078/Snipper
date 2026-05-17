@@ -142,7 +142,7 @@ export function Sidebar({ onCollapse, trashOpen, onTrashClick, onSelectFolder }:
           ) : (
             <>
               <span className="flex-1 text-xs font-medium">{state.allSnipsLabel || 'All Snips'}</span>
-              {state.snips.length > 0 && !isAllSelected && (
+              {state.snips.length > 0 && (
                 <span className="text-[10px] text-muted tabular-nums">{state.snips.length}</span>
               )}
               {state.isEditMode && (
